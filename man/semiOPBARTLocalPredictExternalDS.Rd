@@ -14,10 +14,12 @@ semiOPBARTLocalPredictExternalDS(
   theta_draws_Serialize,
   us_draws_Serialize,
   final_trees_Serialize,
+  ecdf_reference_Serialize,
   data.name_test,
   num_tree,
   k = 1,
   newobj_pred = "semiOPBART_pred",
+  levels_used = 0:4,
   nfilter = 5,
   seed = 35
 )

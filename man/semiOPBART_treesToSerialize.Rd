@@ -9,7 +9,7 @@ clearly, and so the encoding strategy for trees specifically can change
 later (e.g. a more compact array-based format) without touching every
 caller.}
 \usage{
-semiOPBART_treesToSerialize(forest, tree_idx)
+semiOPBART_treesToSerialize(forest)
 }
 \description{
 Encode a Forest's exported tree list (from the get_trees() Rcpp method

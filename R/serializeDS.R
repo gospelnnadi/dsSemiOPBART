@@ -115,16 +115,24 @@ semiOPBART_ecdfFromSerialize <- function(Serialize_str) {
 #' clearly, and so the encoding strategy for trees specifically can change
 #' later (e.g. a more compact array-based format) without touching every
 #' caller.
-semiOPBART_treesToSerialize <- function(forest, tree_idx) {
-  semiOPBART_toSerialize(forest$get_trees(tree_idx))
+# semiOPBART_treesToSerialize <- function(forest, tree_idx) {
+#   semiOPBART_toSerialize(forest$get_trees(tree_idx))
+# }
+
+semiOPBART_treesToSerialize <- function(forest) {
+  semiOPBART_toSerialize(forest)
 }
 
 #' Decode a Serialize tree bundle and load it into `forest` at `tree_idx`
 #' (overwriting whatever was previously at those indices).
-semiOPBART_treesFromSerialize <- function(forest, Serialize_str, tree_idx) {
-  # trees <- Serializelite::fromSerialize(Serialize_str, simplifyVector = FALSE)
-  # forest$set_trees(trees, tree_idx)
+# semiOPBART_treesFromSerialize <- function(forest, Serialize_str, tree_idx) {
+#   # trees <- Serializelite::fromSerialize(Serialize_str, simplifyVector = FALSE)
+#   # forest$set_trees(trees, tree_idx)
+#   trees <- semiOPBART_fromSerialize(Serialize_str)
+#   forest$set_trees(trees, tree_idx)
+#   invisible(NULL)
+# }
+semiOPBART_treesFromSerialize <- function(Serialize_str) {
   trees <- semiOPBART_fromSerialize(Serialize_str)
-  forest$set_trees(trees, tree_idx)
   invisible(NULL)
 }

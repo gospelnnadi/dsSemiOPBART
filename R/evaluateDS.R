@@ -106,6 +106,9 @@ semiOPBARTLocalConfusionDS <- function(pred_obj, levels_Serialize, nfilter = 5,
   cm_reported <- cm
   cm_reported[cm_reported > 0 & cm_reported < nfilter] <- NA
 
+  print(paste0("truth_f : ", truth_f))
+  print(paste0("pred_f : ", pred_f))
+
   if (identical(dichotomize_threshold, "null")) {
     # ORIGINAL behaviour, unchanged: baseline category (levels[1]) vs rest
     truth_bin <- factor(ifelse(as.character(truth_f) == levels[1], "0", "1"),

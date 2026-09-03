@@ -124,9 +124,11 @@ semiOPBARTLocalClearStateDS <- function(names_Serialize = "null") {
 semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
                                         x_features_Serialize, w_features_Serialize,
                                         transform_recipe = "none",
-                                        newobj = "semiOPBART_transformed", 
+                                        newobj = "semiOPBART_transformed",
                                         nfilter = 5) {
   df <- eval(parse(text = data.name), envir = parent.frame())
+
+  
   if (nrow(df) < nfilter) stop("site n below disclosure threshold")
 
   levels     <- semiOPBART_fromSerialize(levels_Serialize)
@@ -138,9 +140,6 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
          "Options: ", paste(names(semiOPBARTTransformRegistry), collapse = ", "))
   df <- semiOPBARTTransformRegistry[[transform_recipe]](df)
 
-  # missing <- setdiff(c(x_features, w_features), names(df))
-  # if (length(missing)) stop("missing columns after transform: ",
-  #                            paste(missing, collapse = ", "))
 
   # ---- NEW: use only local available features ----
   x_features <- intersect(x_features, names(df))
@@ -151,7 +150,7 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
 
   if (length(w_features) == 0)
     stop("No w_features available in local dataframe.")
-    
+
   df[[outcome_col]] <- factor(df[[outcome_col]], levels = levels)
   # UNLIKE THE ORIGINAL FILTER HERE: unlabeled rows (outcome_col == NA) are
   # KEPT, not dropped. A site that turns out to have too few labeled rows
@@ -168,8 +167,16 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
   Y  <- df[[outcome_col]]
 
   print(paste0("semiOPBARTLocalTransformDS: colnames(X) = ", paste(colnames(X), collapse = ", "), ", colnames(W) = ", paste(colnames(W), collapse = ", "), ", length(Y) = ", length(Y)))
-
-  assign(newobj, list(X = X, W = W, Y = Y, dv = dv), envir = .GlobalEnv)
+cat(
+    "TRANSFORM:",
+    "data.name =", data.name,
+    "| newobj =", newobj,
+    "| dim(df) =", paste(dim(df), collapse = "x"),
+    "| pid =", Sys.getpid(),
+    "\n"
+)
+  assign(newobj, list(X = X, W = W, Y = Y, dv = dv), envir = parent.frame())
+  print(paste0("semiOPBARTLocalTransformDS: assigned newobj '", newobj, "' in parent.frame()"))
 
   # column names ARE returned (server -> client direction, not subject to
   # the inbound Serialize restriction) so the client can verify every site
@@ -186,14 +193,16 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
 # ---- server side (Opal) ----------------------------------------------------
 #' @name semiOPBARTLocalFeatureRangeDS
 #' Report this site's local per-column min/max on X. As of the
-#' normalization-ordering fix, this is called on the TRAIN object (across
+#' normalization-ordering fƒix, this is called on the TRAIN object (across
 #' train_sites only), not the full pre-split transformed object -- a
 #' site's own held-out test/holdout rows no longer contribute to the
 #' global range it will later be normalized against, mirroring the same
 #' train-only principle applied to local_ecdf.
 #' @export
 semiOPBARTLocalFeatureRangeDS <- function(data.name = "semiOPBART_train") {
-  s <- get(data.name, envir = .GlobalEnv)
+  s <- eval(parse(text = data.name), envir = parent.frame())
+  
+
   list(cols = colnames(s$X),
        min  = apply(s$X, 2, min, na.rm = TRUE),
        max  = apply(s$X, 2, max, na.rm = TRUE))
@@ -228,7 +237,9 @@ semiOPBARTLocalFeatureRangeDS <- function(data.name = "semiOPBART_train") {
 #' @export
 semiOPBARTLocalHistogramDS <- function(data.name = "semiOPBART_train",
                                         bin_edges_Serialize) {
-  s <- get(data.name, envir = .GlobalEnv)
+  s <- eval(parse(text = data.name), envir = parent.frame())
+    
+  
   bin_edges <- semiOPBART_fromSerialize(bin_edges_Serialize)
   cols <- colnames(s$X)
   counts <- lapply(cols, function(cn) {
@@ -280,16 +291,19 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
   if (identical(global_min_Serialize, "null")) global_min_Serialize <- NULL
   if (identical(global_max_Serialize, "null")) global_max_Serialize <- NULL
   if (identical(global_ecdf_Serialize, "null")) global_ecdf_Serialize <- NULL
-
-  has <- function(nm) !identical(nm, "null") && exists(nm, envir = .GlobalEnv, inherits = FALSE)
+  caller_env <- parent.frame()
+  has <- function(nm)!identical(nm, "null") && exists(nm, envir = caller_env) #exists(parse(text = nm), envir = parent.frame()) #
   has_train <- has(train.name); has_test <- has(test.name); has_holdout <- has(holdout.name)
 
   if (normalize_method == "local_ecdf") {
-    if (!has_train)
-      stop("local_ecdf normalization needs a TRAIN object at this site to ",
-           "fit ECDFs on (this site has none -- fully demoted or role='test'); ",
-           "use normalize_method = 'federated_minmax' for sites that never train")
-    s_train <- get(train.name, envir = .GlobalEnv)
+    # if (!has_train)
+    #   stop("local_ecdf normalization needs a TRAIN object at this site to ",
+    #        "fit ECDFs on (this site has none -- fully demoted or role='test'); ",
+    #        "use normalize_method = 'federated_minmax' for sites that never train")
+    if (has_train){
+    s_train <- eval(parse(text = train.name), envir = parent.frame())
+    print(paste0("semiOPBARTLocalNormalizeSplitDS: dim(s_train$X) = ", paste(dim(s_train$X), collapse = ", ")))
+
     X_train <- s_train$X
     ecdfs <- lapply(seq_len(ncol(X_train)), function(j) {
       u <- unique(X_train[, j])
@@ -299,26 +313,53 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
         return(function(y) (y - a) / (b - a))
       }
       ecdf(X_train[, j])
+
     })
     apply_norm <- function(X) { for (j in seq_len(ncol(X))) X[, j] <- ecdfs[[j]](X[, j]); X }
     norm_info <- list(method = "local_ecdf", ecdfs = ecdfs)
-
+    }
   } else if (normalize_method == "federated_minmax") {
     if (is.null(global_min_Serialize) || is.null(global_max_Serialize))
       stop("federated_minmax requires global_min_Serialize/global_max_Serialize from ",
            "ds.semiOPBARTComputeGlobalRange()")
     global_min <- semiOPBART_fromSerialize(global_min_Serialize)
     global_max <- semiOPBART_fromSerialize(global_max_Serialize)
+    # apply_norm <- function(X) {
+    #   if (!setequal(names(global_min), colnames(X)))
+    #     stop("global_min/global_max columns don't match this site's X columns")
+    #   gmin <- global_min[colnames(X)]; gmax <- global_max[colnames(X)]
+    #   rng <- gmax - gmin; rng[rng == 0] <- 1   # degenerate column -- avoid
+    #                                             # divide-by-zero, X stays 0
+    #   for (j in seq_len(ncol(X))) X[, j] <- (X[, j] - gmin[j]) / rng[j]
+    #   # a value can, in principle, fall fractionally outside [0,1] if more
+    #   # extreme than the reported global min/max -- clip defensively
+    #   pmin(pmax(X, 0), 1)
+    # }
     apply_norm <- function(X) {
-      if (!setequal(names(global_min), colnames(X)))
-        stop("global_min/global_max columns don't match this site's X columns")
-      gmin <- global_min[colnames(X)]; gmax <- global_max[colnames(X)]
-      rng <- gmax - gmin; rng[rng == 0] <- 1   # degenerate column -- avoid
-                                                # divide-by-zero, X stays 0
-      for (j in seq_len(ncol(X))) X[, j] <- (X[, j] - gmin[j]) / rng[j]
-      # a value can, in principle, fall fractionally outside [0,1] if more
-      # extreme than the reported global min/max -- clip defensively
-      pmin(pmax(X, 0), 1)
+      common_cols <- intersect(colnames(X), names(global_min))
+      print("intersect(colnames(X), names(global_min)")
+      print(common_cols)
+
+      if (length(common_cols) == 0) {
+        warning("No intersecting columns between global_min and this site's X; ",
+                "no normalization applied")
+        return(X)
+      }
+
+      gmin <- global_min[common_cols]
+      gmax <- global_max[common_cols]
+
+      rng <- gmax - gmin
+      rng[rng == 0] <- 1  # degenerate column -- avoid divide-by-zero
+
+      for (j in common_cols) {
+        X[, j] <- (X[, j] - gmin[j]) / rng[j]
+      }
+
+      # Clip only normalized/intersecting variables
+      X[, common_cols] <- pmin(pmax(X[, common_cols], 0), 1)
+
+      X
     }
     norm_info <- list(method = "federated_minmax", global_min = global_min, global_max = global_max)
 
@@ -332,38 +373,96 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
       function(y) pmin(pmax(stats::approx(edges, cf, xout = y, method = "linear",
                                            rule = 2)$y, 0), 1)
     }), global_ecdf$cols)
-    
+
+
+    # apply_norm <- function(X) {
+    # print("global_ecdf")
+    # print(global_ecdf$cols)
+    # print("name(ecdf_fns)")
+    # print(names(ecdf_fns))
+    # print("colnames(X)")
+    # print(colnames(X))
+    # print("setdiff(global_ecdf$cols, colnames(X))")
+    # print(setdiff(global_ecdf$cols, colnames(X)))
+    # print("setdiff(colnames(X), global_ecdf$cols)")
+    # print(setdiff(colnames(X), global_ecdf$cols))
+    #   if (!setequal(names(ecdf_fns), colnames(X)))
+    #     stop("global_ecdf columns don't match this site's X columns")
+    #   for (j in colnames(X)) X[, j] <- ecdf_fns[[j]](X[, j])
+    #   X
+    # }
 
     apply_norm <- function(X) {
-    print("global_ecdf")
-    print(global_ecdf$cols)
-    print("name(ecdf_fns)")
-    print(names(ecdf_fns))
-    print("colnames(X)")
-    print(colnames(X))
-    print("setdiff(global_ecdf$cols, colnames(X))")
-    print(setdiff(global_ecdf$cols, colnames(X)))
-    print("setdiff(colnames(X), global_ecdf$cols)")
-    print(setdiff(colnames(X), global_ecdf$cols))
-      if (!setequal(names(ecdf_fns), colnames(X)))
-        stop("global_ecdf columns don't match this site's X columns")
-      for (j in colnames(X)) X[, j] <- ecdf_fns[[j]](X[, j])
+        print("global_ecdf")
+        print(global_ecdf$cols)
+
+        print("name(ecdf_fns)")
+        print(names(ecdf_fns))
+
+        print("colnames(X)")
+        print(colnames(X))
+
+        print("setdiff(global_ecdf$cols, colnames(X))")
+        print(setdiff(global_ecdf$cols, colnames(X)))
+
+        print("setdiff(colnames(X), global_ecdf$cols)")
+        print(setdiff(colnames(X), global_ecdf$cols))
+
+        common_cols <- intersect(colnames(X), names(ecdf_fns))
+
+        print("intersect(colnames(X), global_ecdf$cols)")
+        print(common_cols)
+
+        if (length(common_cols) == 0) {
+          warning(
+            "No intersecting columns between global_ecdf and this site's X; ",
+            "no normalization applied"
+          )
+         return(X)
+        }
+
+        for (j in common_cols) {
+        X[, j] <- ecdf_fns[[j]](X[, j])
+        }
+
       X
-    }
+      }
+
     norm_info <- list(method = "federated_ecdf", global_ecdf = global_ecdf)
 
   } else stop("normalize_method must be 'local_ecdf', 'federated_minmax', ",
               "or 'federated_ecdf'")
+ 
 
-  update_obj <- function(nm) {
-    s <- get(nm, envir = .GlobalEnv)
-    s$X <- apply_norm(s$X)
-    s$norm_info <- norm_info
-    assign(nm, s, envir = .GlobalEnv)
-  }
+    update_obj <- function(nm) {
+
+        s <- get(
+            nm,
+            envir = caller_env,
+            inherits = FALSE
+        )
+
+        s$X <- apply_norm(s$X)
+        s$norm_info <- norm_info
+      cat(
+    "SPLIT:",
+    "nm =", nm,
+    "| dim(X) =", paste(dim(s$X), collapse = "x"),
+    "\n"
+    )
+        assign(
+            nm,
+            s,
+            envir = caller_env
+        )
+      s <- eval(parse(text = nm), envir = caller_env)
+    print(paste0("semiOPBARTLocalNormalizeSplitDS: updated ", nm, ": dim(s$X) = ", paste(dim(s$X), collapse = ", "), ", length(s$Y) = ", length(s$Y)))
+     
+    }
+
   if (has_train)   update_obj(train.name)
   if (has_test)    update_obj(test.name)
-  if (has_holdout) update_obj(holdout.name)
+  if (has_holdout && has_train) update_obj(holdout.name)
 
   list(normalize_method = normalize_method,
        has_train = has_train, has_test = has_test, has_holdout = has_holdout)
@@ -408,22 +507,46 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
                                     newobj_test = "semiOPBART_test",
                                     newobj_holdout = "semiOPBART_holdout",
                                     nfilter = 5) {
-  s <- get(data.name, envir = .GlobalEnv)
+
+  s <- eval(parse(text = data.name), envir = parent.frame())
   labeled_idx   <- which(!is.na(s$Y))
   unlabeled_idx <- which(is.na(s$Y))
   n_labeled <- length(labeled_idx)
+
+  cat(
+    "SOURCE:",
+    data.name,
+    "| exists =", exists(data.name,  parent.frame()),
+    "\n"
+)
+
+if (exists(data.name,  parent.frame())) {
+    tmp <- get(data.name,  parent.frame())
+
+    cat(
+        "SOURCE DIM:",
+        paste(dim(tmp$X), collapse = "x"),
+        "| W:",
+        paste(dim(tmp$W), collapse = "x"),
+        "| Y:",
+        length(tmp$Y),
+        "\n"
+    )
+}
 
   print(paste0("semiOPBARTLocalSplitDS: n_labeled = ", n_labeled, ", n_unlabeled = ", length(unlabeled_idx), ", dim(s$X) = ", paste(dim(s$X), collapse = "x"), ", dim(s$W) = ", paste(dim(s$W), collapse = "x"), ", length(s$Y) = ", length(s$Y)))
 
   slice <- function(idx) list(X = s$X[idx, , drop = FALSE],
                                W = s$W[idx, , drop = FALSE],
                                Y = s$Y[idx], dv = s$dv, norm_info = s$norm_info)
-
+ 
   if (n_labeled < nfilter) {
     # auto-demoted: no train, no Group A -- everything (if it clears
     # nfilter as a whole, already guaranteed by the Transform step) goes
     # to Group B only
-    assign(newobj_holdout, s, envir = .GlobalEnv)
+  
+    assign(newobj_holdout, s, envir = parent.frame())
+    print(paste0("semiOPBARTLocalSplitDS: auto-demoted, n_labeled = ", n_labeled, " < nfilter = ", nfilter, ", dim(s$X) = ", paste(dim(s$X), collapse = ", "), ", dim(s$W) = ", paste(dim(s$W), collapse = ", "), ", length(s$Y) = ", length(s$Y))) 
     return(list(n_train = 0L, n_test = 0L, n_holdout = length(s$Y),
                 split_applied = FALSE, auto_demoted = TRUE,
                 reason = paste0("only ", n_labeled, " labeled rows, need >= ", nfilter)))
@@ -433,10 +556,15 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
     print("semiOPBARTLocalSplitDS: train_ratio is NULL, using ALL labeled rows for training")
     # ALL labeled rows -> train; no held-out labeled rows exist, so Group A
     # is never created here. Any unlabeled rows still go to Group B alone.
-    assign(newobj_train, slice(labeled_idx), envir = .GlobalEnv)
+
+    assign(newobj_train, slice(labeled_idx), envir = parent.frame())
+     
     n_holdout <- 0L
     if (length(unlabeled_idx) >= nfilter) {
-      assign(newobj_holdout, slice(unlabeled_idx), envir = .GlobalEnv)
+    
+       assign(newobj_holdout, slice(unlabeled_idx), envir = parent.frame())
+
+      
       n_holdout <- length(unlabeled_idx)
     }
     return(list(n_train = length(labeled_idx), n_test = 0L, n_holdout = n_holdout,
@@ -457,11 +585,15 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
   if (length(s_train$Y) < nfilter)
     stop("train subset below disclosure threshold at this site even though ",
          "labeled count passed the initial check -- train_ratio too low")
-  assign(newobj_train, s_train, envir = .GlobalEnv)
+
+  assign(newobj_train, s_train, envir = parent.frame())
+  
 
   n_test <- 0L
   if (length(test_idx) >= nfilter) {
-    assign(newobj_test, slice(test_idx), envir = .GlobalEnv)
+    
+    assign(newobj_test, slice(test_idx), envir = parent.frame())
+    
     n_test <- length(test_idx)
   }  # else: too few held-out labeled rows for a disclosure-safe Group A
      # object at this site -- simply not created, no error, this site just
@@ -469,10 +601,33 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
 
   n_holdout <- 0L
   if (length(holdout_idx) >= nfilter) {
-    assign(newobj_holdout, slice(holdout_idx), envir = .GlobalEnv)
+    
+    assign(newobj_holdout, slice(holdout_idx), envir = parent.frame())
+    
     n_holdout <- length(holdout_idx)
   }
 
+  cat(
+  "LocalSPLIT:",
+  "data.name =", data.name,
+  "| newobj_train =", newobj_train,
+  "| newobj_test =", newobj_test,
+  "| newobj_holdout =", newobj_holdout,
+  "| dim(X) =", paste(dim(s$X), collapse = "x"),
+  "| dim(W) =", paste(dim(s$W), collapse = "x"),
+  "| length(Y) =", length(s$Y),
+  "\n"
+)
+cat(
+  "LOADED:",
+  data.name,
+  "| dim(X) =", paste(dim(s$X), collapse = "x"),
+  "| dim(W) =", paste(dim(s$W), collapse = "x"),
+  "| length(Y) =", length(s$Y),
+  "| pid =", Sys.getpid(),
+  "| host =", Sys.info()[["nodename"]],
+  "\n"
+)
   list(n_train = length(s_train$Y), n_test = n_test, n_holdout = n_holdout,
        split_applied = TRUE, auto_demoted = FALSE)
 }
@@ -487,7 +642,8 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
 semiOPBARTLocalAsTestDS <- function(data.name, newobj_test = "semiOPBART_test",
                                      newobj_holdout = "semiOPBART_holdout",
                                      nfilter = 5) {
-  s <- get(data.name, envir = .GlobalEnv)
+
+  s <- eval(parse(text = data.name), envir = parent.frame())
   if (length(s$Y) < nfilter) stop("site n below disclosure threshold")
 
   labeled_idx <- which(!is.na(s$Y))
@@ -496,10 +652,12 @@ semiOPBARTLocalAsTestDS <- function(data.name, newobj_test = "semiOPBART_test",
     assign(newobj_test, list(X = s$X[labeled_idx, , drop = FALSE],
                               W = s$W[labeled_idx, , drop = FALSE],
                               Y = s$Y[labeled_idx], dv = s$dv, norm_info = s$norm_info),
-           envir = .GlobalEnv)
+           envir = parent.frame())
+
     n_test <- length(labeled_idx)
   }
-  assign(newobj_holdout, s, envir = .GlobalEnv)   # ALL rows, unconditionally
+
+  assign(newobj_holdout, s, envir = parent.frame())   # ALL rows, unconditionally
   list(n_test = n_test, n_holdout = length(s$Y))
 }
 
