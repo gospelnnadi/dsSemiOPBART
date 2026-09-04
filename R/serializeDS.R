@@ -125,14 +125,37 @@ semiOPBART_treesToSerialize <- function(forest) {
 
 #' Decode a Serialize tree bundle and load it into `forest` at `tree_idx`
 #' (overwriting whatever was previously at those indices).
-# semiOPBART_treesFromSerialize <- function(forest, Serialize_str, tree_idx) {
-#   # trees <- Serializelite::fromSerialize(Serialize_str, simplifyVector = FALSE)
-#   # forest$set_trees(trees, tree_idx)
-#   trees <- semiOPBART_fromSerialize(Serialize_str)
-#   forest$set_trees(trees, tree_idx)
-#   invisible(NULL)
-# }
-semiOPBART_treesFromSerialize <- function(Serialize_str) {
+semiOPBART_treesFromSerialize <- function(forest, Serialize_str, tree_idx) {
+  # trees <- Serializelite::fromSerialize(Serialize_str, simplifyVector = FALSE)
+  # forest$set_trees(trees, tree_idx)
   trees <- semiOPBART_fromSerialize(Serialize_str)
+  forest$set_trees(trees, tree_idx)
   invisible(NULL)
+}
+
+semiOPBART_treesFromSerialize_check <- function(Serialize_str) {
+
+  if (
+    length(Serialize_str) != 1L ||
+    is.na(Serialize_str) ||
+    !nzchar(Serialize_str)
+  ) {
+    stop(
+      "semiOPBART_treesFromSerialize(): ",
+      "Serialize_str must be one non-empty, non-NA string"
+    )
+  }
+
+  trees <- semiOPBART_fromSerialize(
+    Serialize_str
+  )
+
+  if (is.null(trees)) {
+    stop(
+      "semiOPBART_treesFromSerialize(): ",
+      "deserialization returned NULL"
+    )
+  }
+
+  trees
 }

@@ -5,7 +5,7 @@
 \title{Decode a Serialize tree bundle and load it into `forest` at `tree_idx`
 (overwriting whatever was previously at those indices).}
 \usage{
-semiOPBART_treesFromSerialize(Serialize_str)
+semiOPBART_treesFromSerialize(forest, Serialize_str, tree_idx)
 }
 \description{
 Decode a Serialize tree bundle and load it into `forest` at `tree_idx`

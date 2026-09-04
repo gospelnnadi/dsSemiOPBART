@@ -23,5 +23,9 @@ AggregateMethods:
     semiOPBARTLocalSyncDS,
     semiOPBARTLocalCheckExistsDS,
     semiOPBARTLocalExportForestDS,
+    semiOPBARTLocalStoreExternalReferenceDS,
+    semiOPBARTLocalAssembleExternalReferenceDS,
+    semiOPBARTLocalPredictExternalStoredDS, 
+    semiOPBARTLocalStoreExternalReferenceChunkDS,
 
 

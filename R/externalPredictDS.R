@@ -24,10 +24,447 @@
 # single global reference to ship, so training itself already refuses to
 # run under "local_ecdf" (semiOPBARTLocalInitDS()'s own hard requirement).
 # ---------------------------------------------------------------------------
+library(SoftBart)
 
 #source("serializeDS.R")
 
+#' Store one chunk of an external reference on the server.
+#'
+#' @export
+semiOPBARTLocalStoreExternalReferenceChunkDS <- function(
+    reference_name,
+    kind,
+    chunk,
+    chunk_index,
+    n_chunks
+) {
+
+  caller_env <- parent.frame()
+
+  if (!kind %in% c("trees", "ecdf")) {
+    stop(
+      "kind must be either 'trees' or 'ecdf'"
+    )
+  }
+
+  if (
+    length(chunk) != 1L ||
+    is.na(chunk) ||
+    !nzchar(chunk)
+  ) {
+    stop(
+      "Received invalid chunk: it must be one non-empty non-NA string"
+    )
+  }
+
+  if (
+    chunk_index < 1L ||
+    chunk_index > n_chunks
+  ) {
+    stop("Invalid chunk index")
+  }
+
+  staged_name <- paste0(
+    ".semiOPBART_external_reference_",
+    reference_name
+  )
+
+  if (!exists(
+      staged_name,
+      envir = caller_env,
+      inherits = FALSE
+  )) {
+
+    ref <- list(
+      tree_chunks = vector("list", n_chunks),
+      ecdf_chunks = vector("list", n_chunks),
+      n_tree_chunks = NA_integer_,
+      n_ecdf_chunks = NA_integer_
+    )
+
+  } else {
+
+    ref <- get(
+      staged_name,
+      envir = caller_env,
+      inherits = FALSE
+    )
+
+    # Expand if the first stream had fewer chunks.
+    if (
+      kind == "trees" &&
+      length(ref$tree_chunks) < n_chunks
+    ) {
+      length(ref$tree_chunks) <- n_chunks
+    }
+
+    if (
+      kind == "ecdf" &&
+      length(ref$ecdf_chunks) < n_chunks
+    ) {
+      length(ref$ecdf_chunks) <- n_chunks
+    }
+  }
+
+  if (kind == "trees") {
+
+    ref$tree_chunks[[chunk_index]] <- chunk
+    ref$n_tree_chunks <- as.integer(n_chunks)
+
+  } else {
+
+    ref$ecdf_chunks[[chunk_index]] <- chunk
+    ref$n_ecdf_chunks <- as.integer(n_chunks)
+  }
+
+  assign(
+    staged_name,
+    ref,
+    envir = caller_env
+  )
+
+  list(
+    ok = TRUE,
+    reference_name = reference_name,
+    kind = kind,
+    chunk_index = chunk_index,
+    n_chunks = n_chunks
+  )
+}
+
 # ---- server side (Opal) ----------------------------------------------------
+#' Store an externally shipped forest + normalization reference locally.
+#'
+#' The payload is transferred in chunks so a large Serialize string does not
+#' have to be embedded as one huge literal in a DataSHIELD call.
+#'
+#' @export
+semiOPBARTLocalStoreExternalReferenceDS <- function(
+    reference_name,
+    trees_chunk,
+    ecdf_chunk,
+    chunk_index,
+    n_chunks
+) {
+
+  caller_env <- parent.frame()
+
+  state_name <- paste0(
+    ".semiOPBART_external_reference_",
+    reference_name
+  )
+
+  if (
+    !exists(
+      state_name,
+      envir = caller_env,
+      inherits = FALSE
+    )
+  ) {
+    ref <- list(
+      trees_chunks = vector("list", n_chunks),
+      ecdf_chunks = vector("list", n_chunks),
+      n_chunks = n_chunks
+    )
+  } else {
+    ref <- get(
+      state_name,
+      envir = caller_env,
+      inherits = FALSE
+    )
+  }
+
+  ref$trees_chunks[[chunk_index]] <- trees_chunk
+  ref$ecdf_chunks[[chunk_index]] <- ecdf_chunk
+
+  assign(
+    state_name,
+    ref,
+    envir = caller_env
+  )
+
+  list(
+    ok = TRUE,
+    reference_name = reference_name,
+    chunk_index = chunk_index
+  )
+}
+
+#' Assemble a complete external reference from staged chunks.
+#'
+#' @export
+semiOPBARTLocalAssembleExternalReferenceDS <- function(
+    reference_name
+) {
+
+  caller_env <- parent.frame()
+
+  staged_name <- paste0(
+    ".semiOPBART_external_reference_",
+    reference_name
+  )
+
+  if (!exists(
+      staged_name,
+      envir = caller_env,
+      inherits = FALSE
+  )) {
+    stop(
+      "No staged external reference found for '",
+      reference_name,
+      "'"
+    )
+  }
+
+  ref <- get(
+    staged_name,
+    envir = caller_env,
+    inherits = FALSE
+  )
+
+  # ---------------------------------------------------------------
+  # Validate tree chunks
+  # ---------------------------------------------------------------
+
+  if (
+    is.na(ref$n_tree_chunks) ||
+    ref$n_tree_chunks < 1L
+  ) {
+    stop("No tree chunks were staged")
+  }
+
+  tree_missing <- vapply(
+    ref$tree_chunks[seq_len(ref$n_tree_chunks)],
+    function(x) {
+      is.null(x) ||
+      length(x) != 1L ||
+      is.na(x) ||
+      !nzchar(x)
+    },
+    logical(1)
+  )
+
+  if (any(tree_missing)) {
+    stop(
+      "Missing/invalid tree chunk(s): ",
+      paste(
+        which(tree_missing),
+        collapse = ", "
+      )
+    )
+  }
+
+  # ---------------------------------------------------------------
+  # Validate ECDF chunks
+  # ---------------------------------------------------------------
+
+  if (
+    is.na(ref$n_ecdf_chunks) ||
+    ref$n_ecdf_chunks < 1L
+  ) {
+    stop("No ECDF chunks were staged")
+  }
+
+  ecdf_missing <- vapply(
+    ref$ecdf_chunks[seq_len(ref$n_ecdf_chunks)],
+    function(x) {
+      is.null(x) ||
+      length(x) != 1L ||
+      is.na(x) ||
+      !nzchar(x)
+    },
+    logical(1)
+  )
+
+  if (any(ecdf_missing)) {
+    stop(
+      "Missing/invalid ECDF chunk(s): ",
+      paste(
+        which(ecdf_missing),
+        collapse = ", "
+      )
+    )
+  }
+
+  # ---------------------------------------------------------------
+  # Reconstruct EXACT strings
+  # ---------------------------------------------------------------
+
+  trees_Serialize <- paste0(
+    unlist(
+      ref$tree_chunks[seq_len(ref$n_tree_chunks)],
+      use.names = FALSE
+    ),
+    collapse = ""
+  )
+
+  ecdf_reference_Serialize <- paste0(
+    unlist(
+      ref$ecdf_chunks[seq_len(ref$n_ecdf_chunks)],
+      use.names = FALSE
+    ),
+    collapse = ""
+  )
+
+  # ---------------------------------------------------------------
+  # Validate reconstructed serialization
+  # ---------------------------------------------------------------
+
+  if (!nzchar(trees_Serialize)) {
+    stop("Reconstructed tree serialization is empty")
+  }
+
+  if (!nzchar(ecdf_reference_Serialize)) {
+    stop("Reconstructed ECDF serialization is empty")
+  }
+
+  if (!startsWith(trees_Serialize, "580a")) {
+    stop(
+      "Reconstructed tree serialization has invalid header: ",
+      substr(trees_Serialize, 1L, 32L)
+    )
+  }
+
+  if (!startsWith(ecdf_reference_Serialize, "580a")) {
+    stop(
+      "Reconstructed ECDF serialization has invalid header: ",
+      substr(ecdf_reference_Serialize, 1L, 32L)
+    )
+  }
+
+  # ---------------------------------------------------------------
+  # Save final server-side reference
+  # ---------------------------------------------------------------
+
+  final_state_name <- paste0(
+    ".semiOPBART_external_reference_final_",
+    reference_name
+  )
+
+  assign(
+    final_state_name,
+    list(
+      trees_Serialize = trees_Serialize,
+      ecdf_reference_Serialize =
+        ecdf_reference_Serialize
+    ),
+    envir = caller_env
+  )
+
+  # Remove temporary staging object.
+  rm(
+    list = staged_name,
+    envir = caller_env
+  )
+
+  message(
+    "[semiOPBARTLocalAssembleExternalReferenceDS] ",
+    "assembled forest length=",
+    nchar(trees_Serialize),
+    ", ECDF length=",
+    nchar(ecdf_reference_Serialize)
+  )
+
+  list(
+    ok = TRUE,
+    state_name = final_state_name,
+    trees_length = nchar(trees_Serialize),
+    ecdf_length = nchar(ecdf_reference_Serialize)
+  )
+}
+
+#' Predict at a site with NO .semiOPBART_state (never ran Init/training).
+#' Builds a fresh hypers/opts template locally from whatever X this site
+#' already has (either already prepared, or just re-prepared by
+#' ds.semiOPBARTPredictExternal() below using the shipped global
+#' normalization reference) -- unlike semiOPBARTLocalPredictDS(), this
+#' does NOT read .semiOPBART_state at all, which is precisely what makes
+#' it usable at a site that never trained.
+#'
+#' @param theta_draws_Serialize, us_draws_Serialize, final_trees_Serialize  same as
+#'   semiOPBARTLocalPredictDS() -- final_trees_Serialize here is ONE reference site's own forest
+#'   (from semiOPBARTLocalExportForestDS() above), not a pooled reconstruction; this function doesn't need to know or care which, it just loads whatever tree Serialize it's handed
+#' @param data.name_test  a PREPARED (list(X, W, Y, ...)) object at this site, on the SAME normalized scale as the trees were grown on --
+#'   i.e. built using the same normalization reference, whether that happened via the original shared ds.semiOPBARTPrepare() call or via ds.semiOPBARTPredictExternal()'s own re-prepare step
+#' @param num_tree, k  must match what training used, for sigma_mu scaling to be consistent with the shipped tree ensemble
+#' @export
+semiOPBARTLocalPredictExternalStoredDS <- function(
+    theta_draws_Serialize,
+    us_draws_Serialize,
+    reference_state_name,
+    data.name_test,
+    num_tree,
+    k = 1,
+    newobj_pred = "semiOPBART_pred",
+    levels_used_serialized,
+    nfilter = 5,
+    seed = 35
+) {
+
+  caller_env <- parent.frame()
+
+  if (!exists(
+      reference_state_name,
+      envir = caller_env,
+      inherits = FALSE
+  )) {
+    stop(
+      "External reference state '",
+      reference_state_name,
+      "' not found"
+    )
+  }
+
+  ref <- get(
+    reference_state_name,
+    envir = caller_env,
+    inherits = FALSE
+  )
+
+  if (
+    is.null(ref$trees_Serialize) ||
+    is.null(ref$ecdf_reference_Serialize)
+  ) {
+    stop("External reference is incomplete")
+  }
+
+  semiOPBARTLocalPredictExternalDS(
+    theta_draws_Serialize =
+      theta_draws_Serialize,
+
+    us_draws_Serialize =
+      us_draws_Serialize,
+
+    final_trees_Serialize =
+      ref$trees_Serialize,
+
+    ecdf_reference_Serialize =
+      ref$ecdf_reference_Serialize,
+
+    data.name_test =
+      data.name_test,
+
+    num_tree =
+      num_tree,
+
+    k =
+      k,
+
+    newobj_pred =
+      newobj_pred,
+
+    levels_used_serialized =
+      levels_used_serialized,
+
+    nfilter =
+      nfilter,
+
+    seed =
+      seed,
+    caller_env =
+      caller_env
+  )
+}
 
 #' Export THIS site's own current forest (all num_tree trees), for the
 #' client to ship elsewhere as a reference-site model. Requires
@@ -99,7 +536,7 @@ if (!is.null(norm_info)) {
   # Forest
   # ---------------------------------------------------------------
 
-  trees_Serialize <- semiOPBART_treesToSerialize(s$owned_forest)
+  trees_Serialize <- semiOPBART_treesToSerialize(s$owned_forest$get_trees(seq_len(s$num_tree) - 1))
 
   list(
     trees_Serialize = trees_Serialize,
@@ -153,25 +590,29 @@ semiOPBARTLocalPredictExternalDS <- function(
     num_tree,
     k = 1,
     newobj_pred = "semiOPBART_pred",
-    levels_used = 0:4,
+    levels_used_serialized = NULL,
     nfilter = 5,
-    seed = 35
+    seed = 35,
+    caller_env = parent.frame()
 ) {
+    print("semiOPBARTLocalPredictExternalDS(): starting external prediction")
 
   set.seed(seed)
 
-  caller_env <- parent.frame()
+  #caller_env <- parent.frame()
 
   s_test <- get(
     data.name_test,
     envir = caller_env,
     inherits = FALSE
   )
+  print("semiOPBARTLocalPredictExternalDS(): retrieved test data")
 
-  if (length(s_test$Y) < nfilter) {
-    stop("test n below disclosure threshold")
+  print(paste0("semiOPBARTLocalPredictExternalDS(): threshold nfilter = ", nfilter))
+  if (is.null(levels_used_serialized)) {
+    stop("semiOPBARTLocalPredictExternalDS(): levels_used_serialized is NULL")
   }
-
+  levels_used <- semiOPBART_fromSerialize(levels_used_serialized)  
   theta_draws <-
     semiOPBART_fromSerialize(theta_draws_Serialize)
 
@@ -180,14 +621,6 @@ semiOPBARTLocalPredictExternalDS <- function(
 
   ecdf_reference <-
     semiOPBART_fromSerialize(ecdf_reference_Serialize)
-
-  n_final_trees <-
-    length(
-      Serializelite::fromSerialize(
-        final_trees_Serialize,
-        simplifyVector = FALSE
-      )
-    )
 
   # ---------------------------------------------------------------
   # Apply exported ECDF to X
@@ -208,20 +641,102 @@ semiOPBARTLocalPredictExternalDS <- function(
         s_test$X[, j]
       )
   }
+  print("semiOPBARTLocalPredictExternalDS(): applied ECDF reference to test X")
+
 
   # ---------------------------------------------------------------
   # Reconstruct reference forest
   # ---------------------------------------------------------------
 
-  eval_forest <-
-    semiOPBART_treesFromSerialize(
+  print(
+    paste0(
+      "semiOPBARTLocalPredictExternalDS(): reconstructing forest; ",
+      "serialized length = ",
+      nchar(final_trees_Serialize),
+      "; header = ",
+      substr(final_trees_Serialize, 1L, 32L)
+    )
+  )
+
+  ref_forest <- tryCatch(
+
+    semiOPBART_treesFromSerialize_check(
       final_trees_Serialize
+    ),
+
+    error = function(e) {
+
+      stop(
+        "semiOPBARTLocalPredictExternalDS(): ",
+        "semiOPBART_treesFromSerialize() failed: ",
+        conditionMessage(e)
+      )
+
+    }
+
+  )
+
+  if (is.null(ref_forest)) {
+
+    stop(
+      "semiOPBARTLocalPredictExternalDS(): ",
+      "semiOPBART_treesFromSerialize() returned NULL. ",
+      "The reconstructed serialized forest is syntactically present ",
+      "but could not be converted back into a forest."
     )
 
-  fx_new <-
-    as.numeric(
-      eval_forest$do_predict(s_test$X)
+  }
+
+  print("semiOPBARTLocalPredictExternalDS(): reconstructed reference forest successfully")
+
+hypers_template <- tryCatch(
+   SoftBart::Hypers(
+    X = s_test$X,
+    Y = rep(1, nrow(s_test$X)),
+    sigma_hat = 1,
+    normalize_Y = FALSE
+),
+    error = function(e) {
+        stop(
+            "SoftBart::Hypers() failed: ",
+            conditionMessage(e)
+        )
+    }
+)
+
+  hypers_template$sigma_mu <- 3 / k / sqrt(num_tree)
+  hypers_template$sigma     <- 1
+  hypers_template$sigma_hat <- 1
+  hypers_template$num_tree  <- num_tree
+  # same confirmed fix as semiOPBARTLocalInitDS() (semiopbartDS.R):
+  # without this, multi-level categorical x_features would be mishandled
+  # by the Dirichlet variable-selection prior
+  hypers_template$group <- dummy_assign(s_test$dv)
+  opts <- SoftBart::Opts(); opts$update_sigma <- FALSE
+  eval_forest <- SoftBart::MakeForest(hypers_template, opts, FALSE)
+
+  semiOPBART_treesFromSerialize(eval_forest, final_trees_Serialize, seq_len(num_tree) - 1)
+
+print("semiOPBARTLocalPredictExternalDS(): reconstructed reference forest and set trees")
+if (!is.function(eval_forest$do_predict) &&
+    !methods::hasMethod("do_predict", class(eval_forest))) {
+  stop("Reconstructed external forest has no usable do_predict()")
+}
+ 
+  fx_new <- tryCatch(
+  {
+    print("semiOPBARTLocalPredictExternalDS(): calling do_predict()")
+    out <- eval_forest$do_predict(s_test$X)
+    print("semiOPBARTLocalPredictExternalDS(): do_predict() returned")
+    as.numeric(out)
+  },
+  error = function(e) {
+    stop(
+      "semiOPBARTLocalPredictExternalDS(): do_predict() failed: ",
+      conditionMessage(e)
     )
+  }
+)
 
   # ---------------------------------------------------------------
   # Posterior prediction
@@ -281,7 +796,6 @@ semiOPBARTLocalPredictExternalDS <- function(
         )
     }
   }
-
   n_test <-
     nrow(s_test$X)
 
@@ -310,6 +824,7 @@ semiOPBARTLocalPredictExternalDS <- function(
         which.max
       )
     ]
+  print("semiOPBARTLocalPredictExternalDS(): computed posterior probabilities and MAP scores")
 
   assign(
     newobj_pred,
@@ -323,7 +838,9 @@ semiOPBARTLocalPredictExternalDS <- function(
   )
 
   list(
-    n_test = n_test
+    n_test = n_test, prob = prob_matrix,
+      map = map_score,
+      truth = s_test$Y, used_external_shipping = TRUE
   )
 }
 

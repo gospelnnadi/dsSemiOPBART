@@ -31,7 +31,7 @@ AggregateMethods:
     semiOPBARTLocalSplitDS,
     semiOPBARTLocalFeatureRangeDS,
     semiOPBARTLocalClearStateDS,
-    semiOPBARTLocalMCMCImproved ,
+    semiOPBARTLocalMCMCImproved,
     semiOPBARTLocalPredictEDS,
     semiOPBARTLocalInitEDS,
     semiOPBARTLocalMCMC,
@@ -40,6 +40,10 @@ AggregateMethods:
     semiOPBARTLocalSyncDS,
     semiOPBARTLocalCheckExistsDS,
     semiOPBARTLocalExportForestDS,
+    semiOPBARTLocalStoreExternalReferenceDS,
+    semiOPBARTLocalAssembleExternalReferenceDS,
+    semiOPBARTLocalPredictExternalStoredDS,
+    semiOPBARTLocalStoreExternalReferenceChunkDS,
 Options: datashield.privacyLevel=5
 Depends: R (>= 3.5)
 Encoding: UTF-8

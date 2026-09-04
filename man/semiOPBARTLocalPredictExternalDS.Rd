@@ -19,9 +19,10 @@ semiOPBARTLocalPredictExternalDS(
   num_tree,
   k = 1,
   newobj_pred = "semiOPBART_pred",
-  levels_used = 0:4,
+  levels_used_serialized = NULL,
   nfilter = 5,
-  seed = 35
+  seed = 35,
+  caller_env = parent.frame()
 )
 }
 \arguments{
