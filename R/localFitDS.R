@@ -140,5 +140,11 @@ semiOPBARTLocalFitFDS <- function(formula_str, linear_formula_str, data.name,
        us_cov     = us_cov,                    # for inverse-variance/random-effects
                                                  # combine of the FREE thresholds only
        var_counts_mean = var_counts_mean,
-       site_n     = length(df$X))
+       site_n     = nrow(df$X),
+        # sufficient statistics for federated combination
+       WtW = fit$WtW,
+       WtZr = fit$WtZr,
+
+       # threshold statistics for federated threshold update
+       th_stats = fit$th_stats)
 }

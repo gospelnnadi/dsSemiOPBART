@@ -19,7 +19,7 @@ run_semiOPBART_orchestrator() actually uses ("D_train" etc., let alone
 any run-tagged variant of them), so calling ds.semiOPBARTClearState()
 silently cleared nothing real and stale state from a previous run (a
 different pathology/model, or a different architecture) could leak
-into the next one -- exactly the "global_ecdf columns don't match"
+into the next one -- exactly the "federated_ecdf columns don't match"
 failure this was built to fix. Now it removes EXACTLY the names it's
 given, nothing guessed.
 }

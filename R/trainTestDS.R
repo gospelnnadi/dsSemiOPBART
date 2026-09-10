@@ -118,7 +118,7 @@ semiOPBARTLocalPredictEDS <- function(theta_Serialize, us_Serialize,
 
 #' @name semiOPBARTLocalPredictFDS
 #' Predict AT THIS SITE ONLY, using this site's OWN cached local forest
-#' (.semiOPBART_local_fit_F$forest -- never any other site's) combined
+#' (.semiOPBART_local_fit_F$owned_forest -- never any other site's) combined
 #' with Architecture F's FEDERATED theta/us (from
 #' ds.semiOPBARTCombineF()) -- point estimate only, see
 #' ds.semiOPBARTPredictF()'s docstring for why. Requires
@@ -134,7 +134,7 @@ semiOPBARTLocalPredictEDS <- function(theta_Serialize, us_Serialize,
 #' @export
 #' @name semiOPBARTLocalPredictFDS
 #' Predict AT THIS SITE ONLY, using this site's OWN cached local forest
-#' (.semiOPBART_local_fit_F$forest -- never any other site's) combined
+#' (.semiOPBART_local_fit_F$owned_forest -- never any other site's) combined
 #' with Architecture F's FEDERATED theta/us (from
 #' ds.semiOPBARTCombineF()) -- point estimate only, see
 #' ds.semiOPBARTPredictF()'s docstring for why. Requires
@@ -175,7 +175,7 @@ semiOPBARTLocalPredictFDS <- function(theta_Serialize, us_Serialize,
   theta <- semiOPBART_fromSerialize(theta_Serialize)
   us    <- semiOPBART_fromSerialize(us_Serialize)
 
-  fx_new <- as.numeric(fit$forest$do_predict(X_new))
+  fx_new <- as.numeric(fit$owned_forest$do_predict(X_new))
   hw_new <- as.numeric(W_new %*% theta)     # FEDERATED theta, not fit$theta_p
   combined <- fx_new + hw_new
 

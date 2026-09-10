@@ -15,6 +15,7 @@ semiOPBARTLocalPredictExternalDS(
   us_draws_Serialize,
   final_trees_Serialize,
   ecdf_reference_Serialize,
+  normalization_used = c("local_ecdf", "federated_ecdf"),
   data.name_test,
   num_tree,
   k = 1,

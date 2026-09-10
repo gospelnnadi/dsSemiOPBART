@@ -393,6 +393,7 @@ semiOPBARTLocalPredictExternalStoredDS <- function(
     us_draws_Serialize,
     reference_state_name,
     data.name_test,
+    normalization_used = c("local_ecdf", "federated_ecdf"),
     num_tree,
     k = 1,
     newobj_pred = "semiOPBART_pred",
@@ -400,7 +401,9 @@ semiOPBARTLocalPredictExternalStoredDS <- function(
     nfilter = 5,
     seed = 35
 ) {
-
+  set.seed(seed)
+  normalization_used <- match.arg(normalization_used)
+  
   caller_env <- parent.frame()
 
   if (!exists(
@@ -440,6 +443,7 @@ semiOPBARTLocalPredictExternalStoredDS <- function(
 
     ecdf_reference_Serialize =
       ref$ecdf_reference_Serialize,
+    normalization_used=normalization_used,
 
     data.name_test =
       data.name_test,
@@ -506,32 +510,32 @@ semiOPBARTLocalExportForestDS <- function(
   #
   # Expected location:
   #   s$norm_info$local_ecdf
-  #   s$norm_info$global_ecdf
+  #   s$norm_info$federated_ecdf
   #
   # We export whichever reference actually exists.
   #
   norm_info <- s$norm_info
 
 local_ecdf <- NULL
-global_ecdf <- NULL
+federated_ecdf <- NULL
 
 if (!is.null(norm_info)) {
   if (identical(norm_info$method, "local_ecdf") && !is.null(norm_info$ecdfs)) {
     local_ecdf <- norm_info$ecdfs
   }
-  if (identical(norm_info$method, "federated_ecdf") && !is.null(norm_info$global_ecdf)) {
-    global_ecdf <- norm_info$global_ecdf
+  if (identical(norm_info$method, "federated_ecdf") && !is.null(norm_info$federated_ecdf)) {
+    federated_ecdf <- norm_info$federated_ecdf
   }
 }
 
-  if (is.null(local_ecdf) && is.null(global_ecdf)) {
+  if (is.null(local_ecdf) && is.null(federated_ecdf)) {
     stop(
       "semiOPBARTLocalExportForestDS(): neither local_ecdf nor ",
-      "global_ecdf is available in this site's normalization state. ",
+      "federated_ecdf is available in this site's normalization state. ",
       "Cannot export an external prediction reference."
     )
   }
-
+  
   # ---------------------------------------------------------------
   # Forest
   # ---------------------------------------------------------------
@@ -549,14 +553,14 @@ if (!is.null(norm_info)) {
       else
         NULL,
 
-    global_ecdf_Serialize =
-      if (!is.null(global_ecdf))
-        semiOPBART_toSerialize(global_ecdf)
+    federated_ecdf_Serialize =
+      if (!is.null(federated_ecdf))
+        semiOPBART_toSerialize(federated_ecdf)
       else
         NULL,
 
     has_local_ecdf = !is.null(local_ecdf),
-    has_global_ecdf = !is.null(global_ecdf)
+    has_federated_ecdf = !is.null(federated_ecdf)
   )
 }
 
@@ -586,6 +590,7 @@ semiOPBARTLocalPredictExternalDS <- function(
     us_draws_Serialize,
     final_trees_Serialize,
     ecdf_reference_Serialize,
+    normalization_used = c("local_ecdf", "federated_ecdf"),
     data.name_test,
     num_tree,
     k = 1,
@@ -598,17 +603,13 @@ semiOPBARTLocalPredictExternalDS <- function(
     print("semiOPBARTLocalPredictExternalDS(): starting external prediction")
 
   set.seed(seed)
-
-  #caller_env <- parent.frame()
-
+  normalization_used <- match.arg(normalization_used)
   s_test <- get(
     data.name_test,
     envir = caller_env,
     inherits = FALSE
   )
-  print("semiOPBARTLocalPredictExternalDS(): retrieved test data")
-
-  print(paste0("semiOPBARTLocalPredictExternalDS(): threshold nfilter = ", nfilter))
+ 
   if (is.null(levels_used_serialized)) {
     stop("semiOPBARTLocalPredictExternalDS(): levels_used_serialized is NULL")
   }
@@ -622,41 +623,132 @@ semiOPBARTLocalPredictExternalDS <- function(
   ecdf_reference <-
     semiOPBART_fromSerialize(ecdf_reference_Serialize)
 
+# ---------------------------------------------------------------
+# Normalize posterior parameter shapes
+#
+# A single posterior draw may arrive as a vector.
+# Internally we always use:
+#
+#   theta_draws: n_draws x n_theta
+#   us_draws:    n_draws x n_thresholds
+# ---------------------------------------------------------------
+
+if (is.null(dim(theta_draws))) {
+
+  if (!is.numeric(theta_draws) || length(theta_draws) == 0L) {
+    stop("theta_draws must be a non-empty numeric vector or matrix")
+  }
+
+  theta_draws <- matrix(
+    theta_draws,
+    nrow = 1L,
+    ncol = length(theta_draws)
+  )
+}
+
+if (is.null(dim(us_draws))) {
+
+  if (!is.numeric(us_draws) || length(us_draws) == 0L) {
+    stop("us_draws must be a non-empty numeric vector or matrix")
+  }
+
+  us_draws <- matrix(
+    us_draws,
+    nrow = 1L,
+    ncol = length(us_draws)
+  )
+}
+
+cat(
+  "[PREDICT] theta_draws dimensions = ",
+  paste(dim(theta_draws), collapse = " x "),
+  "\n",
+  sep = ""
+)
+
+cat(
+  "[PREDICT] us_draws dimensions = ",
+  paste(dim(us_draws), collapse = " x "),
+  "\n",
+  sep = ""
+)
   # ---------------------------------------------------------------
   # Apply exported ECDF to X
   # ---------------------------------------------------------------
-
-  if (length(ecdf_reference) != ncol(s_test$X)) {
+if (normalization_used == "federated_ecdf") {
+  print("semiOPBARTLocalPredictExternalDS(): using federated ECDF normalization")
+if (!is.list(ecdf_reference) ||
+    is.null(ecdf_reference$cols) ||
+    is.null(ecdf_reference$bin_edges) ||
+    is.null(ecdf_reference$cum_frac)) {
     stop(
-      "ECDF reference has ",
-      length(ecdf_reference),
-      " columns, but test X has ",
-      ncol(s_test$X)
+        "Invalid serialized global ECDF reference: ",
+        "expected cols, bin_edges and cum_frac"
     )
-  }
+}
 
+expected_cols <- ecdf_reference$cols
+actual_cols <- colnames(s_test$X)
+
+cat("[PREDICT] ECDF columns =", length(expected_cols), "\n")
+cat("[PREDICT] test X columns =", length(actual_cols), "\n")
+
+if (!identical(actual_cols, expected_cols)) {
+
+    missing_cols <- setdiff(expected_cols, actual_cols)
+    extra_cols <- setdiff(actual_cols, expected_cols)
+
+    stop(
+        "Federated ECDF/X column mismatch. ",
+        "Expected: ", paste(expected_cols, collapse = ", "),
+        "; actual: ", paste(actual_cols, collapse = ", "),
+        "; missing: ",
+        if (length(missing_cols))
+            paste(missing_cols, collapse = ", ")
+        else
+            "NONE",
+        "; extra: ",
+        if (length(extra_cols))
+            paste(extra_cols, collapse = ", ")
+        else
+            "NONE"
+    )
+}
+
+cat(
+    "[PREDICT] ECDF columns match test X: ",
+    length(expected_cols),
+    " columns\n",
+    sep = ""
+)
+
+    ecdf_fns <- setNames(lapply(ecdf_reference$cols, function(cn) {
+      edges <- ecdf_reference$bin_edges[[cn]]; cf <- ecdf_reference$cum_frac[[cn]]
+      function(y) pmin(pmax(stats::approx(edges, cf, xout = y, method = "linear",
+                                           rule = 2)$y, 0), 1)
+    }), ecdf_reference$cols)
+
+  for (j in seq_len(ncol(s_test$X))) {
+        s_test$X[, j] <- ecdf_fns[[j]](s_test$X[, j])
+        }
+
+}else if (normalization_used == "local_ecdf") {
+    print("semiOPBARTLocalPredictExternalDS(): using local ECDF normalization")
   for (j in seq_len(ncol(s_test$X))) {
     s_test$X[, j] <-
       ecdf_reference[[j]](
         s_test$X[, j]
       )
   }
+}else {
+    stop("semiOPBARTLocalPredictExternalDS(): unknown normalization_used: ", normalization_used)
+}
   print("semiOPBARTLocalPredictExternalDS(): applied ECDF reference to test X")
 
 
   # ---------------------------------------------------------------
   # Reconstruct reference forest
   # ---------------------------------------------------------------
-
-  print(
-    paste0(
-      "semiOPBARTLocalPredictExternalDS(): reconstructing forest; ",
-      "serialized length = ",
-      nchar(final_trees_Serialize),
-      "; header = ",
-      substr(final_trees_Serialize, 1L, 32L)
-    )
-  )
 
   ref_forest <- tryCatch(
 
@@ -715,7 +807,12 @@ hypers_template <- tryCatch(
   opts <- SoftBart::Opts(); opts$update_sigma <- FALSE
   eval_forest <- SoftBart::MakeForest(hypers_template, opts, FALSE)
 
+
+
   semiOPBART_treesFromSerialize(eval_forest, final_trees_Serialize, seq_len(num_tree) - 1)
+
+
+
 
 print("semiOPBARTLocalPredictExternalDS(): reconstructed reference forest and set trees")
 if (!is.function(eval_forest$do_predict) &&
@@ -741,7 +838,6 @@ if (!is.function(eval_forest$do_predict) &&
   # ---------------------------------------------------------------
   # Posterior prediction
   # ---------------------------------------------------------------
-
   hw_draws <-
     s_test$W %*% t(theta_draws)
 

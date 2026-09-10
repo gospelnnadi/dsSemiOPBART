@@ -1898,6 +1898,9 @@ Node* list_to_node(Rcpp::List l, Node* parent) {
   n->is_root = (parent == NULL);
   n->is_leaf = Rcpp::as<bool>(l["is_leaf"]);
   n->tau     = Rcpp::as<double>(l["tau"]);
+  // Original Root() sets the root current_weight to 1.0.
+  // Child nodes start at 0 and are populated by GetW().
+  n->current_weight = (parent == NULL) ? 1.0 : 0.0;
 
   if (n->is_leaf) {
     n->mu    = Rcpp::as<double>(l["mu"]);

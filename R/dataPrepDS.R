@@ -71,7 +71,7 @@ semiOPBARTTransformRegistry <- list(
 #' any run-tagged variant of them), so calling ds.semiOPBARTClearState()
 #' silently cleared nothing real and stale state from a previous run (a
 #' different pathology/model, or a different architecture) could leak
-#' into the next one -- exactly the "global_ecdf columns don't match"
+#' into the next one -- exactly the "federated_ecdf columns don't match"
 #' failure this was built to fix. Now it removes EXACTLY the names it's
 #' given, nothing guessed.
 #'
@@ -94,7 +94,7 @@ semiOPBARTLocalClearStateDS <- function(names_Serialize = "null") {
     # names, purely defensive (kept for anyone still relying on the old
     # unnamed/untagged single-run convention)
     c("semiOPBART_transformed", "semiOPBART_train", "semiOPBART_test",
-      "semiOPBART_holdout", "global_ecdf", "global_range", ".semiOPBART_state")
+      "semiOPBART_holdout", "federated_ecdf", "global_range", ".semiOPBART_state")
   } else {
     semiOPBART_fromSerialize(names_Serialize)
   }
@@ -151,7 +151,18 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
   if (length(w_features) == 0)
     stop("No w_features available in local dataframe.")
 
-  df[[outcome_col]] <- factor(df[[outcome_col]], levels = levels)
+  # ---- PROTECTIVE OUTCOME HANDLING ---- 
+  # The outcome is optional at a site. If it is absent, Y is explicitly NULL.
+  outcome_available <- !is.null(outcome_col) && length(outcome_col) == 1L && nzchar(outcome_col) && outcome_col %in% names(df) 
+  if (outcome_available) { 
+    df[[outcome_col]] <- factor(df[[outcome_col]], levels = levels) 
+    Y <- df[[outcome_col]] 
+    cat( "TRANSFORM: outcome available |", "column =", outcome_col, "| length(Y) =", length(Y), "| NA(Y) =", sum(is.na(Y)), "\n" ) 
+    } else { 
+      Y <- NULL 
+      cat( "TRANSFORM: outcome unavailable locally |", "requested outcome_col =", outcome_col, "| Y = NULL\n" ) 
+      }
+  #df[[outcome_col]] <- factor(df[[outcome_col]], levels = levels)
   # UNLIKE THE ORIGINAL FILTER HERE: unlabeled rows (outcome_col == NA) are
   # KEPT, not dropped. A site that turns out to have too few labeled rows
   # to train can still be used for PREDICTION -- see semiOPBARTLocalSplitDS()
@@ -164,7 +175,7 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
   X  <- suppressWarnings(predict(dv, df))    # UNNORMALISED -- normalization
                                               # happens in step 3, not here
   W  <- as.matrix(df[, w_features, drop = FALSE])
-  Y  <- df[[outcome_col]]
+  #Y  <- df[[outcome_col]]
 
   print(paste0("semiOPBARTLocalTransformDS: colnames(X) = ", paste(colnames(X), collapse = ", "), ", colnames(W) = ", paste(colnames(W), collapse = ", "), ", length(Y) = ", length(Y)))
 cat(
@@ -273,10 +284,10 @@ semiOPBARTLocalHistogramDS <- function(data.name = "semiOPBART_train",
 #'   global_min_Serialize/global_max_Serialize, applies to whichever objects exist,
 #'   train not required (this is what makes never-trained-site prediction
 #'   possible at all -- see dsSemiOPBARTExternalPredict.R). "federated_ecdf":
-#'   requires global_ecdf_Serialize from ds.semiOPBARTComputeGlobalECDF() --
+#'   requires federated_ecdf_Serialize from ds.semiOPBARTComputeGlobalECDF() --
 #'   a genuinely pooled (all-sites) empirical CDF approximation, built
 #'   from aggregated histogram bin counts, not just two endpoints.
-#' @param global_ecdf_Serialize  Serialize-encoded list(bin_edges=, cum_frac=) per
+#' @param federated_ecdf_Serialize  Serialize-encoded list(bin_edges=, cum_frac=) per
 #'   column, from ds.semiOPBARTComputeGlobalECDF() -- required (and only
 #'   used) when normalize_method = "federated_ecdf"
 #' @export
@@ -286,11 +297,11 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
                                              normalize_method = "local_ecdf",
                                              global_min_Serialize = "null",
                                              global_max_Serialize = "null",
-                                             global_ecdf_Serialize = "null",
+                                             federated_ecdf_Serialize = "null",
                                              nfilter = 5) {
   if (identical(global_min_Serialize, "null")) global_min_Serialize <- NULL
   if (identical(global_max_Serialize, "null")) global_max_Serialize <- NULL
-  if (identical(global_ecdf_Serialize, "null")) global_ecdf_Serialize <- NULL
+  if (identical(federated_ecdf_Serialize, "null")) federated_ecdf_Serialize <- NULL
   caller_env <- parent.frame()
   has <- function(nm)!identical(nm, "null") && exists(nm, envir = caller_env) #exists(parse(text = nm), envir = parent.frame()) #
   has_train <- has(train.name); has_test <- has(test.name); has_holdout <- has(holdout.name)
@@ -364,37 +375,20 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
     norm_info <- list(method = "federated_minmax", global_min = global_min, global_max = global_max)
 
   } else if (normalize_method == "federated_ecdf") {
-    if (is.null(global_ecdf_Serialize))
-      stop("federated_ecdf requires global_ecdf_Serialize from ",
+    if (is.null(federated_ecdf_Serialize))
+      stop("federated_ecdf requires federated_ecdf_Serialize from ",
            "ds.semiOPBARTComputeGlobalECDF()")
-    global_ecdf <- semiOPBART_fromSerialize(global_ecdf_Serialize)
-    ecdf_fns <- setNames(lapply(global_ecdf$cols, function(cn) {
-      edges <- global_ecdf$bin_edges[[cn]]; cf <- global_ecdf$cum_frac[[cn]]
+    federated_ecdf <- semiOPBART_fromSerialize(federated_ecdf_Serialize)
+    ecdf_fns <- setNames(lapply(federated_ecdf$cols, function(cn) {
+      edges <- federated_ecdf$bin_edges[[cn]]; cf <- federated_ecdf$cum_frac[[cn]]
       function(y) pmin(pmax(stats::approx(edges, cf, xout = y, method = "linear",
                                            rule = 2)$y, 0), 1)
-    }), global_ecdf$cols)
+    }), federated_ecdf$cols)
 
-
-    # apply_norm <- function(X) {
-    # print("global_ecdf")
-    # print(global_ecdf$cols)
-    # print("name(ecdf_fns)")
-    # print(names(ecdf_fns))
-    # print("colnames(X)")
-    # print(colnames(X))
-    # print("setdiff(global_ecdf$cols, colnames(X))")
-    # print(setdiff(global_ecdf$cols, colnames(X)))
-    # print("setdiff(colnames(X), global_ecdf$cols)")
-    # print(setdiff(colnames(X), global_ecdf$cols))
-    #   if (!setequal(names(ecdf_fns), colnames(X)))
-    #     stop("global_ecdf columns don't match this site's X columns")
-    #   for (j in colnames(X)) X[, j] <- ecdf_fns[[j]](X[, j])
-    #   X
-    # }
 
     apply_norm <- function(X) {
-        print("global_ecdf")
-        print(global_ecdf$cols)
+        print("federated_ecdf")
+        print(federated_ecdf$cols)
 
         print("name(ecdf_fns)")
         print(names(ecdf_fns))
@@ -402,20 +396,20 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
         print("colnames(X)")
         print(colnames(X))
 
-        print("setdiff(global_ecdf$cols, colnames(X))")
-        print(setdiff(global_ecdf$cols, colnames(X)))
+        print("setdiff(federated_ecdf$cols, colnames(X))")
+        print(setdiff(federated_ecdf$cols, colnames(X)))
 
-        print("setdiff(colnames(X), global_ecdf$cols)")
-        print(setdiff(colnames(X), global_ecdf$cols))
+        print("setdiff(colnames(X), federated_ecdf$cols)")
+        print(setdiff(colnames(X), federated_ecdf$cols))
 
         common_cols <- intersect(colnames(X), names(ecdf_fns))
 
-        print("intersect(colnames(X), global_ecdf$cols)")
+        print("intersect(colnames(X), federated_ecdf$cols)")
         print(common_cols)
 
         if (length(common_cols) == 0) {
           warning(
-            "No intersecting columns between global_ecdf and this site's X; ",
+            "No intersecting columns between federated_ecdf and this site's X; ",
             "no normalization applied"
           )
          return(X)
@@ -428,7 +422,7 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
       X
       }
 
-    norm_info <- list(method = "federated_ecdf", global_ecdf = global_ecdf)
+    norm_info <- list(method = "federated_ecdf", federated_ecdf = federated_ecdf)
 
   } else stop("normalize_method must be 'local_ecdf', 'federated_minmax', ",
               "or 'federated_ecdf'")
