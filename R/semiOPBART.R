@@ -33,7 +33,7 @@ smopbart <- function(formula,
                      opts = SoftBart::Opts(),
                      verbose = FALSE,
                      nfilter_threshold = 5,
-                    threshold_method = "exact") {
+                     sd = 1) {
 
   set.seed(seed)
 
@@ -146,11 +146,10 @@ smopbart <- function(formula,
   lower = lower_us[Y_train]
   upper_us = c(us_p[1,], Inf)
   upper = upper_us[Y_train]
-  Z = rtruncnorm(n = length(Y_train), a = lower, b = upper, mean = fx_train[1,] + W_train %*% theta_p[1,], sd = 1)
+  Z = rtruncnorm(n = length(Y_train), a = lower, b = upper, mean = fx_train[1,] + W_train %*% theta_p[1,], sd = sd)
   print("initial values for Gibbs sampling initialized")
   ## MCMC
-  WtW = NULL
-  WtZr = NULL
+ 
   pb = progress_bar$new(
     format = "  MCMC [:bar] :percent eta: :eta",
     total = N-1, clear = FALSE, width= 60)
@@ -172,16 +171,12 @@ smopbart <- function(formula,
     lower = lower_us[Y_train]
     upper_us = c(us_p[i,], Inf)
     upper = upper_us[Y_train]
-    Z = rtruncnorm(n = length(Y_train), a = lower, b = upper, mean = fx_train[i-1,] + W_train %*% theta_p[i-1,], sd=0.5)
+    Z = rtruncnorm(n = length(Y_train), a = lower, b = upper, mean = fx_train[i-1,] + W_train %*% theta_p[i-1,], sd=sd)
 
     ## update theta
     Z_star = Z - fx_train[i-1,]
-    WtW = t(W_train) %*% W_train
-    WtZr = (t(W_train) %*% Z_star)
-    theta_hat = solve(WtW) %*% WtZr
-    theta_sigma = solve(WtW)
-    #theta_hat = solve(t(W_train) %*% W_train) %*% (t(W_train) %*% Z_star)
-    #theta_sigma = solve(t(W_train) %*% W_train)
+    theta_hat = solve(t(W_train) %*% W_train) %*% (t(W_train) %*% Z_star)
+    theta_sigma = solve(t(W_train) %*% W_train)
     theta_p[i,] = mvtnorm::rmvnorm(n=1, mean=theta_hat, sigma=theta_sigma)
 
     ## update f(x)
@@ -195,27 +190,6 @@ smopbart <- function(formula,
       varcounts[i,] = smopbart_forest$get_counts()
     }
   }
-
-  th_stats=NULL
-  
-    # ---- 5. Update thresholds (if allowed) ----
-
-      # Accumulate stats for global threshold update
-      th_stats <- lapply(seq_len(J), function(j) {
-        zj <- Z[Y_train == j]
-        if (length(zj) < nfilter_threshold) {
-          return(c(lo = NA, hi = NA, n = length(zj)))
-        }
-        if (identical(threshold_method, "exact")) {
-          c(lo = min(zj), hi = max(zj), n = length(zj))
-        } else {
-          c(lo = unname(quantile(zj, 0.05)),
-            hi = unname(quantile(zj, 0.95)),
-            n = length(zj))
-        }
-      })
-      names(th_stats) <- as.character(seq_len(J))
-
 
 
 
@@ -396,13 +370,7 @@ smopbart <- function(formula,
              norm_info= s$norm_info,
              opts = opts,
              owned_forest = smopbart_forest,
-             dv = dv,
-              # sufficient statistics for federated combination
-             WtW = WtW,
-             WtZr = WtZr,
-
-             # threshold statistics for federated threshold update
-             th_stats = th_stats)
+             dv = dv)
 
   class(out) = "smopbart"
   return(out)

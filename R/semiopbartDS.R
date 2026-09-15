@@ -181,7 +181,8 @@ semiOPBARTLocalMCMC <- function(
     J,
     threshold_method = "exact",
     state_name = ".semiOPBART_state",
-    seed = 35
+    seed = 35,
+    sd = 1
 ) {
 
     set.seed(seed)
@@ -342,7 +343,7 @@ s$J <- J
             mean = as.numeric(
                 fx_local + s$W %*% local_theta
             ),
-            sd = 1 
+            sd = sd #1 
         )
 
         # ==========================================================

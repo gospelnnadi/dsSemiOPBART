@@ -675,19 +675,12 @@ cat(
   # ---------------------------------------------------------------
   # Apply exported ECDF to X
   # ---------------------------------------------------------------
-if (normalization_used == "federated_ecdf") {
-  print("semiOPBARTLocalPredictExternalDS(): using federated ECDF normalization")
-if (!is.list(ecdf_reference) ||
-    is.null(ecdf_reference$cols) ||
-    is.null(ecdf_reference$bin_edges) ||
-    is.null(ecdf_reference$cum_frac)) {
-    stop(
-        "Invalid serialized global ECDF reference: ",
-        "expected cols, bin_edges and cum_frac"
-    )
-}
 
-expected_cols <- ecdf_reference$cols
+expected_cols <- if ((normalization_used == "local_ecdf")) {
+  names(ecdf_reference)
+} else {
+  ecdf_reference$cols
+}
 actual_cols <- colnames(s_test$X)
 
 cat("[PREDICT] ECDF columns =", length(expected_cols), "\n")
@@ -714,7 +707,6 @@ if (!identical(actual_cols, expected_cols)) {
             "NONE"
     )
 }
-
 cat(
     "[PREDICT] ECDF columns match test X: ",
     length(expected_cols),
@@ -722,6 +714,17 @@ cat(
     sep = ""
 )
 
+if (normalization_used == "federated_ecdf") {
+  print("semiOPBARTLocalPredictExternalDS(): using federated ECDF normalization")
+if (!is.list(ecdf_reference) ||
+    is.null(ecdf_reference$cols) ||
+    is.null(ecdf_reference$bin_edges) ||
+    is.null(ecdf_reference$cum_frac)) {
+    stop(
+        "Invalid serialized global ECDF reference: ",
+        "expected cols, bin_edges and cum_frac"
+    )
+}
     ecdf_fns <- setNames(lapply(ecdf_reference$cols, function(cn) {
       edges <- ecdf_reference$bin_edges[[cn]]; cf <- ecdf_reference$cum_frac[[cn]]
       function(y) pmin(pmax(stats::approx(edges, cf, xout = y, method = "linear",
@@ -939,6 +942,41 @@ if (!is.function(eval_forest$do_predict) &&
       truth = s_test$Y, used_external_shipping = TRUE
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # semiOPBARTLocalExportForestDS <- function(state_name = ".semiOPBART_state") {

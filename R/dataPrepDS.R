@@ -47,10 +47,9 @@ semiOPBARTTransformRegistry <- list(
   rheumatoid_ip_ep = function(d) {
     within(d, {
       bclass_IL6i  <- as.integer(bDMARD == 2)
-      ESR_GAP      <- abs(ESR + SJC28)
       CRP_collapsed <- as.integer(10 * CRP < ESR)
       CSR_ESR_GAP  <- abs(ESR - SJC28)
-      CRP_noscale  <- CRP + 1e-3 +
+      CRP_noscale  <- CRP  +
         (0.2 * CSR_ESR_GAP * CRP_collapsed) +
         (0.6 * CSR_ESR_GAP * bclass_IL6i * as.integer(CRP == 0))
       CRP <- CRP_noscale
@@ -197,6 +196,9 @@ cat(
   list(n = nrow(df), x_cols = colnames(X), w_cols = colnames(W))
 }
 
+
+
+
 # =====================  2. FEDERATED RANGE  ==================================
 # Only needed for normalize_method = "federated_minmax". Skip entirely for
 # "local_ecdf".
@@ -295,12 +297,9 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
                                              test.name = "semiOPBART_test",
                                              holdout.name = "semiOPBART_holdout",
                                              normalize_method = "local_ecdf",
-                                             global_min_Serialize = "null",
-                                             global_max_Serialize = "null",
                                              federated_ecdf_Serialize = "null",
                                              nfilter = 5) {
-  if (identical(global_min_Serialize, "null")) global_min_Serialize <- NULL
-  if (identical(global_max_Serialize, "null")) global_max_Serialize <- NULL
+
   if (identical(federated_ecdf_Serialize, "null")) federated_ecdf_Serialize <- NULL
   caller_env <- parent.frame()
   has <- function(nm)!identical(nm, "null") && exists(nm, envir = caller_env) #exists(parse(text = nm), envir = parent.frame()) #
@@ -316,7 +315,7 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
     print(paste0("semiOPBARTLocalNormalizeSplitDS: dim(s_train$X) = ", paste(dim(s_train$X), collapse = ", ")))
 
     X_train <- s_train$X
-    ecdfs <- lapply(seq_len(ncol(X_train)), function(j) {
+    ecdfs <- setNames( lapply(seq_len(ncol(X_train)), function(j) {
       u <- unique(X_train[, j])
       if (length(u) == 1) return(identity)
       if (length(u) == 2) {
@@ -325,55 +324,14 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
       }
       ecdf(X_train[, j])
 
-    })
+    }),
+    colnames(X_train)
+    )
+    print("names(ecdfs):")
+    print(names(ecdfs))
     apply_norm <- function(X) { for (j in seq_len(ncol(X))) X[, j] <- ecdfs[[j]](X[, j]); X }
     norm_info <- list(method = "local_ecdf", ecdfs = ecdfs)
     }
-  } else if (normalize_method == "federated_minmax") {
-    if (is.null(global_min_Serialize) || is.null(global_max_Serialize))
-      stop("federated_minmax requires global_min_Serialize/global_max_Serialize from ",
-           "ds.semiOPBARTComputeGlobalRange()")
-    global_min <- semiOPBART_fromSerialize(global_min_Serialize)
-    global_max <- semiOPBART_fromSerialize(global_max_Serialize)
-    # apply_norm <- function(X) {
-    #   if (!setequal(names(global_min), colnames(X)))
-    #     stop("global_min/global_max columns don't match this site's X columns")
-    #   gmin <- global_min[colnames(X)]; gmax <- global_max[colnames(X)]
-    #   rng <- gmax - gmin; rng[rng == 0] <- 1   # degenerate column -- avoid
-    #                                             # divide-by-zero, X stays 0
-    #   for (j in seq_len(ncol(X))) X[, j] <- (X[, j] - gmin[j]) / rng[j]
-    #   # a value can, in principle, fall fractionally outside [0,1] if more
-    #   # extreme than the reported global min/max -- clip defensively
-    #   pmin(pmax(X, 0), 1)
-    # }
-    apply_norm <- function(X) {
-      common_cols <- intersect(colnames(X), names(global_min))
-      print("intersect(colnames(X), names(global_min)")
-      print(common_cols)
-
-      if (length(common_cols) == 0) {
-        warning("No intersecting columns between global_min and this site's X; ",
-                "no normalization applied")
-        return(X)
-      }
-
-      gmin <- global_min[common_cols]
-      gmax <- global_max[common_cols]
-
-      rng <- gmax - gmin
-      rng[rng == 0] <- 1  # degenerate column -- avoid divide-by-zero
-
-      for (j in common_cols) {
-        X[, j] <- (X[, j] - gmin[j]) / rng[j]
-      }
-
-      # Clip only normalized/intersecting variables
-      X[, common_cols] <- pmin(pmax(X[, common_cols], 0), 1)
-
-      X
-    }
-    norm_info <- list(method = "federated_minmax", global_min = global_min, global_max = global_max)
-
   } else if (normalize_method == "federated_ecdf") {
     if (is.null(federated_ecdf_Serialize))
       stop("federated_ecdf requires federated_ecdf_Serialize from ",
@@ -451,180 +409,744 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
         )
       s <- eval(parse(text = nm), envir = caller_env)
     print(paste0("semiOPBARTLocalNormalizeSplitDS: updated ", nm, ": dim(s$X) = ", paste(dim(s$X), collapse = ", "), ", length(s$Y) = ", length(s$Y)))
-     
+     s
     }
 
   if (has_train)   update_obj(train.name)
-  if (has_test)    update_obj(test.name)
+  if (has_test) { 
+    s_train <-  update_obj(test.name)
+    print(paste0( "semiOPBARTLocalSplitDS:  s$Y labels = ", s_train$Y ))
+  }
   if (has_holdout && has_train) update_obj(holdout.name)
+  
+
 
   list(normalize_method = normalize_method,
        has_train = has_train, has_test = has_test, has_holdout = has_holdout)
 }
 
 
+# # ---- server side (Opal) ----------------------------------------------------
+# #' @name semiOPBARTLocalSplitDS
+# #' @param data.name    the prepared object
+# #' @param outcome_col  ONLY used to decide, at this step, whether requested
+# #'   TRAINING is possible -- the actual label values already live in
+# #'   `s$Y` from the prepare step; `outcome_col` here is purely documentary
+# #'   (kept as an explicit, required argument per the requirement that the
+# #'   orchestrator must always name the label variable it means, not so
+# #'   this function can re-derive anything from it)
+# #' @param train_ratio  NULL -> ALL of this site's LABELED rows become
+# #'   training data; numeric in (0,1) -> stratified split WITHIN labeled
+# #'   rows only
+# #' @param nfilter      minimum LABELED row count required to train at all
+# #'
+# #' TWO SEPARATE OUTPUT POPULATIONS, not one, per the requirement that the
+# #' two kinds of evaluation stay independent:
+# #'   - newobj_test (Group A): held-out rows that DO have outcome_col --
+# #'     used ONLY for standard, label-based evaluation. Only ever contains
+# #'     labeled rows.
+# #'   - newobj_holdout (Group B): Group A's rows AGAIN, UNIONED with every
+# #'     row that never had outcome_col at all (this site's unlabeled rows).
+# #'     Used ONLY for evaluation against a separate validation_col, never
+# #'     against outcome_col. Deliberately overlaps with Group A in row
+# #'     membership -- prediction is run on it SEPARATELY (a distinct
+# #'     predict call against a distinct object), not reused from Group A's
+# #'     prediction run.
+# #'
+# #' AUTO-DEMOTION: if this site has fewer than `nfilter` labeled rows
+# #' (including zero), training is impossible here regardless of what role
+# #' was requested. No TRAIN object and no Group A object are created; ALL
+# #' of this site's rows go into Group B (holdout) only, and
+# #' `auto_demoted = TRUE` is reported.
+# #' @export
+# semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
+#                                     seed = NULL, newobj_train = "semiOPBART_train",
+#                                     newobj_test = "semiOPBART_test",
+#                                     newobj_holdout = "semiOPBART_holdout",
+#                                     nfilter = 5) {
+
+#   s <- eval(parse(text = data.name), envir = parent.frame())
+#   labeled_idx   <- which(!is.na(s$Y))
+#   unlabeled_idx <- which(is.na(s$Y))
+#   n_labeled <- length(labeled_idx)
+
+#   cat(
+#     "SOURCE:",
+#     data.name,
+#     "| exists =", exists(data.name,  parent.frame()),
+#     "\n"
+# )
+
+# if (exists(data.name,  parent.frame())) {
+#     tmp <- get(data.name,  parent.frame())
+
+#     cat(
+#         "SOURCE DIM:",
+#         paste(dim(tmp$X), collapse = "x"),
+#         "| W:",
+#         paste(dim(tmp$W), collapse = "x"),
+#         "| Y:",
+#         length(tmp$Y),
+#         "\n"
+#     )
+# }
+
+#   print(paste0("semiOPBARTLocalSplitDS: n_labeled = ", n_labeled, ", n_unlabeled = ", length(unlabeled_idx), ", dim(s$X) = ", paste(dim(s$X), collapse = "x"), ", dim(s$W) = ", paste(dim(s$W), collapse = "x"), ", length(s$Y) = ", length(s$Y)))
+
+#   slice <- function(idx) list(X = s$X[idx, , drop = FALSE],
+#                                W = s$W[idx, , drop = FALSE],
+#                                Y = s$Y[idx], dv = s$dv, norm_info = s$norm_info)
+ 
+#   if (n_labeled < nfilter) {
+#     # auto-demoted: no train, no Group A -- everything (if it clears
+#     # nfilter as a whole, already guaranteed by the Transform step) goes
+#     # to Group B only
+  
+#     assign(newobj_holdout, s, envir = parent.frame())
+#     print(paste0("semiOPBARTLocalSplitDS: auto-demoted, n_labeled = ", n_labeled, " < nfilter = ", nfilter, ", dim(s$X) = ", paste(dim(s$X), collapse = ", "), ", dim(s$W) = ", paste(dim(s$W), collapse = ", "), ", length(s$Y) = ", length(s$Y))) 
+#     return(list(n_train = 0L, n_test = 0L, n_holdout = length(s$Y),
+#                 split_applied = FALSE, auto_demoted = TRUE,
+#                 reason = paste0("only ", n_labeled, " labeled rows, need >= ", nfilter)))
+#   }
+
+#   if (is.null(train_ratio)) {
+#     print("semiOPBARTLocalSplitDS: train_ratio is NULL, using ALL labeled rows for training")
+#     # ALL labeled rows -> train; no held-out labeled rows exist, so Group A
+#     # is never created here. Any unlabeled rows still go to Group B alone.
+
+#     assign(newobj_train, slice(labeled_idx), envir = parent.frame())
+     
+#     n_holdout <- 0L
+#     if (length(unlabeled_idx) >= nfilter) {
+    
+#        assign(newobj_holdout, slice(unlabeled_idx), envir = parent.frame())
+
+      
+#       n_holdout <- length(unlabeled_idx)
+#     }
+#     return(list(n_train = length(labeled_idx), n_test = 0L, n_holdout = n_holdout,
+#                 split_applied = FALSE, auto_demoted = FALSE))
+#   }
+
+#   stopifnot("train_ratio must be in (0,1)" = train_ratio > 0 && train_ratio < 1)
+#   if (!is.null(seed)) set.seed(seed)
+
+#   train_sub <- unlist(caret::createDataPartition(s$Y[labeled_idx], p = train_ratio, list = TRUE))
+#   train_idx   <- labeled_idx[train_sub]
+#   test_idx    <- setdiff(labeled_idx, train_idx)          # Group A: held-out LABELED rows only
+#   holdout_idx <- c(test_idx, unlabeled_idx)                # Group B: Group A rows AGAIN,
+#                                                              # unioned with never-labeled rows
+
+#   print(paste0("semiOPBARTLocalSplitDS: train_idx = ", length(train_idx), ", test_idx = ", length(test_idx), ", holdout_idx = ", length(holdout_idx)))
+#   print("semiOPBARTLocalSplitDS: test_Y index =")
+#   print(test_idx)
+
+#   s_train <- slice(train_idx)
+#   if (length(s_train$Y) < nfilter)
+#     stop("train subset below disclosure threshold at this site even though ",
+#          "labeled count passed the initial check -- train_ratio too low")
+
+#   assign(newobj_train, s_train, envir = parent.frame())
+  
+
+#   n_test <- 0L
+#   if (length(test_idx) >= nfilter) {
+    
+#     assign(newobj_test, slice(test_idx), envir = parent.frame())
+    
+#     n_test <- length(test_idx)
+#   }  # else: too few held-out labeled rows for a disclosure-safe Group A
+#      # object at this site -- simply not created, no error, this site just
+#      # doesn't participate in standard evaluation
+
+#   n_holdout <- 0L
+#   if (length(holdout_idx) >= nfilter) {
+    
+#     assign(newobj_holdout, slice(holdout_idx), envir = parent.frame())
+    
+#     n_holdout <- length(holdout_idx)
+#   }
+
+#   cat(
+#   "LocalSPLIT:",
+#   "data.name =", data.name,
+#   "| newobj_train =", newobj_train,
+#   "| newobj_test =", newobj_test,
+#   "| newobj_holdout =", newobj_holdout,
+#   "| dim(X) =", paste(dim(s$X), collapse = "x"),
+#   "| dim(W) =", paste(dim(s$W), collapse = "x"),
+#   "| length(Y) =", length(s$Y),
+#   "\n"
+# )
+# cat(
+#   "LOADED:",
+#   data.name,
+#   "| dim(X) =", paste(dim(s$X), collapse = "x"),
+#   "| dim(W) =", paste(dim(s$W), collapse = "x"),
+#   "| length(Y) =", length(s$Y),
+#   "| pid =", Sys.getpid(),
+#   "| host =", Sys.info()[["nodename"]],
+#   "\n"
+# )
+#   list(n_train = length(s_train$Y), n_test = n_test, n_holdout = n_holdout,
+#        split_applied = TRUE, auto_demoted = FALSE)
+# }
+
+
+
+
 # ---- server side (Opal) ----------------------------------------------------
 #' @name semiOPBARTLocalSplitDS
 #' @param data.name    the prepared object
-#' @param outcome_col  ONLY used to decide, at this step, whether requested
-#'   TRAINING is possible -- the actual label values already live in
-#'   `s$Y` from the prepare step; `outcome_col` here is purely documentary
-#'   (kept as an explicit, required argument per the requirement that the
-#'   orchestrator must always name the label variable it means, not so
-#'   this function can re-derive anything from it)
-#' @param train_ratio  NULL -> ALL of this site's LABELED rows become
-#'   training data; numeric in (0,1) -> stratified split WITHIN labeled
-#'   rows only
-#' @param nfilter      minimum LABELED row count required to train at all
+#' @param outcome_col  outcome column name (documentary; labels are in s$Y)
+#' @param train_ratio  NULL -> ALL labeled rows become training data;
+#'                     numeric in (0,1) -> stratified split
+#' @param seed         random seed
+#' @param balance_classes
+#'                     if TRUE, balance classes 0-4 in TRAIN ONLY
+#' @param newobj_train
+#' @param newobj_test
+#' @param newobj_holdout
+#' @param nfilter      minimum labeled row count required to train
 #'
-#' TWO SEPARATE OUTPUT POPULATIONS, not one, per the requirement that the
-#' two kinds of evaluation stay independent:
-#'   - newobj_test (Group A): held-out rows that DO have outcome_col --
-#'     used ONLY for standard, label-based evaluation. Only ever contains
-#'     labeled rows.
-#'   - newobj_holdout (Group B): Group A's rows AGAIN, UNIONED with every
-#'     row that never had outcome_col at all (this site's unlabeled rows).
-#'     Used ONLY for evaluation against a separate validation_col, never
-#'     against outcome_col. Deliberately overlaps with Group A in row
-#'     membership -- prediction is run on it SEPARATELY (a distinct
-#'     predict call against a distinct object), not reused from Group A's
-#'     prediction run.
+#' Group A:
+#'   newobj_test = held-out labeled rows only
 #'
-#' AUTO-DEMOTION: if this site has fewer than `nfilter` labeled rows
-#' (including zero), training is impossible here regardless of what role
-#' was requested. No TRAIN object and no Group A object are created; ALL
-#' of this site's rows go into Group B (holdout) only, and
-#' `auto_demoted = TRUE` is reported.
+#' Group B:
+#'   newobj_holdout = Group A + all unlabeled rows
+#'
+#' Balancing is performed ONLY on the training population.
+#' Test and holdout populations are never replicated or modified.
+#'
 #' @export
 semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
-                                    seed = NULL, newobj_train = "semiOPBART_train",
+                                    seed = NULL,
+                                    newobj_train = "semiOPBART_train",
                                     newobj_test = "semiOPBART_test",
                                     newobj_holdout = "semiOPBART_holdout",
-                                    nfilter = 5) {
+                                    nfilter = 5,levels=0:4,
+                                    balance_classes = TRUE, #FALSE,
+                                    balance_target = 5 , 
+                                    balance_seed = NULL) {
 
   s <- eval(parse(text = data.name), envir = parent.frame())
+
   labeled_idx   <- which(!is.na(s$Y))
   unlabeled_idx <- which(is.na(s$Y))
   n_labeled <- length(labeled_idx)
+  s$level <- levels
 
   cat(
     "SOURCE:",
     data.name,
-    "| exists =", exists(data.name,  parent.frame()),
+    "| exists =", exists(data.name, parent.frame()),
     "\n"
-)
+  )
 
-if (exists(data.name,  parent.frame())) {
-    tmp <- get(data.name,  parent.frame())
+  if (exists(data.name, parent.frame())) {
+    tmp <- get(data.name, parent.frame())
 
     cat(
-        "SOURCE DIM:",
-        paste(dim(tmp$X), collapse = "x"),
-        "| W:",
-        paste(dim(tmp$W), collapse = "x"),
-        "| Y:",
-        length(tmp$Y),
-        "\n"
+      "SOURCE DIM:",
+      paste(dim(tmp$X), collapse = "x"),
+      "| W:",
+      paste(dim(tmp$W), collapse = "x"),
+      "| Y:",
+      length(tmp$Y),
+      "\n"
     )
-}
-
-  print(paste0("semiOPBARTLocalSplitDS: n_labeled = ", n_labeled, ", n_unlabeled = ", length(unlabeled_idx), ", dim(s$X) = ", paste(dim(s$X), collapse = "x"), ", dim(s$W) = ", paste(dim(s$W), collapse = "x"), ", length(s$Y) = ", length(s$Y)))
-
-  slice <- function(idx) list(X = s$X[idx, , drop = FALSE],
-                               W = s$W[idx, , drop = FALSE],
-                               Y = s$Y[idx], dv = s$dv, norm_info = s$norm_info)
- 
-  if (n_labeled < nfilter) {
-    # auto-demoted: no train, no Group A -- everything (if it clears
-    # nfilter as a whole, already guaranteed by the Transform step) goes
-    # to Group B only
-  
-    assign(newobj_holdout, s, envir = parent.frame())
-    print(paste0("semiOPBARTLocalSplitDS: auto-demoted, n_labeled = ", n_labeled, " < nfilter = ", nfilter, ", dim(s$X) = ", paste(dim(s$X), collapse = ", "), ", dim(s$W) = ", paste(dim(s$W), collapse = ", "), ", length(s$Y) = ", length(s$Y))) 
-    return(list(n_train = 0L, n_test = 0L, n_holdout = length(s$Y),
-                split_applied = FALSE, auto_demoted = TRUE,
-                reason = paste0("only ", n_labeled, " labeled rows, need >= ", nfilter)))
   }
+
+  print(
+    paste0(
+      "semiOPBARTLocalSplitDS: n_labeled = ", n_labeled,
+      ", n_unlabeled = ", length(unlabeled_idx),
+      ", dim(s$X) = ", paste(dim(s$X), collapse = "x"),
+      ", dim(s$W) = ", paste(dim(s$W), collapse = "x"),
+      ", length(s$Y) = ", length(s$Y)
+    )
+  )
+ 
+  slice <- function(idx) {
+    list(
+      X = s$X[idx, , drop = FALSE],
+      W = s$W[idx, , drop = FALSE],
+      Y = s$Y[idx],
+      dv = s$dv,
+      norm_info = s$norm_info
+    )
+  }
+
+  # ------------------------------------------------------------
+  # Too few labeled observations -> auto-demote to holdout
+  # ------------------------------------------------------------
+
+  if (n_labeled < nfilter) {
+
+    assign(
+      newobj_holdout,
+      s,
+      envir = parent.frame()
+    )
+
+    print(
+      paste0(
+        "semiOPBARTLocalSplitDS: auto-demoted, n_labeled = ",
+        n_labeled,
+        " < nfilter = ",
+        nfilter
+      )
+    )
+
+    return(
+      list(
+        n_train = 0L,
+        n_test = 0L,
+        n_holdout = length(s$Y),
+        split_applied = FALSE,
+        auto_demoted = TRUE,
+        reason = paste0(
+          "only ", n_labeled,
+          " labeled rows, need >= ", nfilter
+        )
+      )
+    )
+  }
+
+  # ------------------------------------------------------------
+  # No train/test split requested
+  # ------------------------------------------------------------
 
   if (is.null(train_ratio)) {
-    print("semiOPBARTLocalSplitDS: train_ratio is NULL, using ALL labeled rows for training")
-    # ALL labeled rows -> train; no held-out labeled rows exist, so Group A
-    # is never created here. Any unlabeled rows still go to Group B alone.
 
-    assign(newobj_train, slice(labeled_idx), envir = parent.frame())
-     
+    print(
+      "semiOPBARTLocalSplitDS: train_ratio is NULL, using ALL labeled rows for training"
+    )
+
+    s_train <- slice(labeled_idx)
+
+    # ----------------------------------------------------------
+    # BALANCE TRAINING SET ONLY
+    # ----------------------------------------------------------
+
+    if (balance_classes) {
+
+      if (is.null(balance_seed))
+        balance_seed <- seed
+
+      bal <- semiOPBART_balance_train(
+        s = s_train,
+        levels =levels,
+        target = balance_target,
+        seed = balance_seed
+      )
+
+      cat(
+        "TRAIN BALANCE BEFORE:",
+        paste(
+          names(bal$counts_before),
+          as.integer(bal$counts_before),
+          sep = "=",
+          collapse = ", "
+        ),
+        "\n"
+      )
+
+      cat(
+        "TRAIN BALANCE AFTER:",
+        paste(
+          names(bal$counts_after),
+          as.integer(bal$counts_after),
+          sep = "=",
+          collapse = ", "
+        ),
+        "\n"
+      )
+
+      s_train <- bal$data
+    }
+
+    assign(
+      newobj_train,
+      s_train,
+      envir = parent.frame()
+    )
+
     n_holdout <- 0L
-    if (length(unlabeled_idx) >= nfilter) {
-    
-       assign(newobj_holdout, slice(unlabeled_idx), envir = parent.frame())
 
-      
+    if (length(unlabeled_idx) >= nfilter) {
+
+      assign(
+        newobj_holdout,
+        slice(unlabeled_idx),
+        envir = parent.frame()
+      )
+
       n_holdout <- length(unlabeled_idx)
     }
-    return(list(n_train = length(labeled_idx), n_test = 0L, n_holdout = n_holdout,
-                split_applied = FALSE, auto_demoted = FALSE))
+
+    return(
+      list(
+        n_train = length(s_train$Y),
+        n_test = 0L,
+        n_holdout = n_holdout,
+        split_applied = FALSE,
+        auto_demoted = FALSE
+      )
+    )
   }
 
-  stopifnot("train_ratio must be in (0,1)" = train_ratio > 0 && train_ratio < 1)
-  if (!is.null(seed)) set.seed(seed)
+  # ------------------------------------------------------------
+  # Standard train/test split
+  # ------------------------------------------------------------
 
-  train_sub <- unlist(caret::createDataPartition(s$Y[labeled_idx], p = train_ratio, list = TRUE))
+  stopifnot(
+    "train_ratio must be in (0,1)" =
+      train_ratio > 0 && train_ratio < 1
+  )
+
+  if (!is.null(seed))
+    set.seed(seed)
+
+  train_sub <- unlist(
+    caret::createDataPartition(
+      s$Y[labeled_idx],
+      p = train_ratio,
+      list = TRUE
+    )
+  )
+
   train_idx   <- labeled_idx[train_sub]
-  test_idx    <- setdiff(labeled_idx, train_idx)          # Group A: held-out LABELED rows only
-  holdout_idx <- c(test_idx, unlabeled_idx)                # Group B: Group A rows AGAIN,
-                                                             # unioned with never-labeled rows
+  test_idx    <- setdiff(labeled_idx, train_idx)
+  holdout_idx <- c(test_idx, unlabeled_idx)
 
-  print(paste0("semiOPBARTLocalSplitDS: train_idx = ", length(train_idx), ", test_idx = ", length(test_idx), ", holdout_idx = ", length(holdout_idx)))
+  print(
+    paste0(
+      "semiOPBARTLocalSplitDS: train_idx = ",
+      length(train_idx),
+      ", test_idx = ",
+      length(test_idx),
+      ", holdout_idx = ",
+      length(holdout_idx)
+    )
+  )
+
+  print("semiOPBARTLocalSplitDS: test_Y index =")
+  print(test_idx)
+
+  # ------------------------------------------------------------
+  # TRAIN
+  # ------------------------------------------------------------
+
   s_train <- slice(train_idx)
-  if (length(s_train$Y) < nfilter)
-    stop("train subset below disclosure threshold at this site even though ",
-         "labeled count passed the initial check -- train_ratio too low")
 
-  assign(newobj_train, s_train, envir = parent.frame())
-  
+  if (length(s_train$Y) < nfilter) {
+
+    stop(
+      "train subset below disclosure threshold at this site even though ",
+      "labeled count passed the initial check -- train_ratio too low"
+    )
+  }
+
+  # ------------------------------------------------------------
+  # BALANCE TRAINING SET ONLY
+  # ------------------------------------------------------------
+
+  if (balance_classes) {
+
+    if (is.null(balance_seed))
+      balance_seed <- seed
+
+    bal <- semiOPBART_balance_train(
+      s = s_train,
+      levels = levels,
+      target = balance_target,
+      seed = balance_seed
+    )
+
+    cat(
+      "TRAIN BALANCE BEFORE:",
+      paste(
+        names(bal$counts_before),
+        as.integer(bal$counts_before),
+        sep = "=",
+        collapse = ", "
+      ),
+      "\n"
+    )
+
+    cat(
+      "TRAIN BALANCE AFTER:",
+      paste(
+        names(bal$counts_after),
+        as.integer(bal$counts_after),
+        sep = "=",
+        collapse = ", "
+      ),
+      "\n"
+    )
+
+    s_train <- bal$data
+  }
+
+  assign(
+    newobj_train,
+    s_train,
+    envir = parent.frame()
+  )
+
+  # ------------------------------------------------------------
+  # TEST -- NEVER BALANCE
+  # ------------------------------------------------------------
 
   n_test <- 0L
+
   if (length(test_idx) >= nfilter) {
-    
-    assign(newobj_test, slice(test_idx), envir = parent.frame())
-    
+
+    assign(
+      newobj_test,
+      slice(test_idx),
+      envir = parent.frame()
+    )
+
     n_test <- length(test_idx)
-  }  # else: too few held-out labeled rows for a disclosure-safe Group A
-     # object at this site -- simply not created, no error, this site just
-     # doesn't participate in standard evaluation
+  }
+
+  # ------------------------------------------------------------
+  # HOLDOUT -- NEVER BALANCE
+  # ------------------------------------------------------------
 
   n_holdout <- 0L
+
   if (length(holdout_idx) >= nfilter) {
-    
-    assign(newobj_holdout, slice(holdout_idx), envir = parent.frame())
-    
+
+    assign(
+      newobj_holdout,
+      slice(holdout_idx),
+      envir = parent.frame()
+    )
+
     n_holdout <- length(holdout_idx)
   }
 
+  # ------------------------------------------------------------
+  # Diagnostics
+  # ------------------------------------------------------------
+
   cat(
-  "LocalSPLIT:",
-  "data.name =", data.name,
-  "| newobj_train =", newobj_train,
-  "| newobj_test =", newobj_test,
-  "| newobj_holdout =", newobj_holdout,
-  "| dim(X) =", paste(dim(s$X), collapse = "x"),
-  "| dim(W) =", paste(dim(s$W), collapse = "x"),
-  "| length(Y) =", length(s$Y),
-  "\n"
-)
-cat(
-  "LOADED:",
-  data.name,
-  "| dim(X) =", paste(dim(s$X), collapse = "x"),
-  "| dim(W) =", paste(dim(s$W), collapse = "x"),
-  "| length(Y) =", length(s$Y),
-  "| pid =", Sys.getpid(),
-  "| host =", Sys.info()[["nodename"]],
-  "\n"
-)
-  list(n_train = length(s_train$Y), n_test = n_test, n_holdout = n_holdout,
-       split_applied = TRUE, auto_demoted = FALSE)
+    "LocalSPLIT:",
+    "data.name =", data.name,
+    "| newobj_train =", newobj_train,
+    "| newobj_test =", newobj_test,
+    "| newobj_holdout =", newobj_holdout,
+    "| dim(X) =", paste(dim(s$X), collapse = "x"),
+    "| dim(W) =", paste(dim(s$W), collapse = "x"),
+    "| length(Y) =", length(s$Y),
+    "\n"
+  )
+
+  cat(
+    "LOADED:",
+    data.name,
+    "| dim(X) =", paste(dim(s$X), collapse = "x"),
+    "| dim(W) =", paste(dim(s$W), collapse = "x"),
+    "| length(Y) =", length(s$Y),
+    "| pid =", Sys.getpid(),
+    "| host =", Sys.info()[["nodename"]],
+    "\n"
+  )
+
+  list(
+    n_train = length(s_train$Y),
+    n_test = n_test,
+    n_holdout = n_holdout,
+    split_applied = TRUE,
+    auto_demoted = FALSE
+  )
 }
+
+# ---- server side (Opal) ----------------------------------------------------
+#' Balance training indices only
+#'
+#' Replicates observations WITH replacement so that every class in
+#' `levels` has the same number of observations as the largest class.
+#'
+#' IMPORTANT:
+#'   This function returns row indices only.
+#'   The caller applies these indices to X, W and Y simultaneously.
+#'
+#' @export
+semiOPBART_balance_train <- function(s,
+                                     levels = 0:4,
+                                     target = 8,
+                                     seed = NULL) {
+
+  if (!is.null(seed))
+    set.seed(seed)
+
+  y <- as.character(s$Y)
+  lev <- as.character(levels)
+
+  # Only labeled observations should reach this function
+  keep <- which(!is.na(y))
+
+  if (!length(keep))
+    stop("No labeled observations available for balancing.")
+
+  counts_before <- table(
+    factor(y[keep], levels = lev)
+  )
+
+  # Make sure all five classes exist
+  if (any(counts_before == 0)) {
+    stop(
+      "Cannot balance training data: missing class(es): ",
+      paste(
+        lev[counts_before == 0],
+        collapse = ", "
+      )
+    )
+  }
+
+  # Never downsample classes already above target
+  sampled_idx <- lapply(lev, function(cl) {
+
+    idx <- keep[y[keep] == cl]
+
+    if (length(idx) >= target) {
+      idx
+    } else {
+      c(
+        idx,
+        sample(
+          idx,
+          size = target - length(idx),
+          replace = TRUE
+        )
+      )
+    }
+  })
+
+  balanced_idx <- unlist(sampled_idx, use.names = FALSE)
+
+  # Shuffle so replicated observations are not grouped by class
+  balanced_idx <- sample(balanced_idx)
+
+  s_balanced <- list(
+    X = s$X[balanced_idx, , drop = FALSE],
+    W = s$W[balanced_idx, , drop = FALSE],
+    Y = s$Y[balanced_idx],
+    dv = s$dv,
+    norm_info = s$norm_info
+  )
+
+  counts_after <- table(
+    factor(
+      as.character(s_balanced$Y),
+      levels = lev
+    )
+  )
+
+  list(
+    data = s_balanced,
+    idx = balanced_idx,
+    counts_before = counts_before,
+    counts_after = counts_after
+  )
+}
+
+
+
+
+
+
+
+
+
+
+# ============================================================
+# POOLED RARE-CLASS FILTERING
+# ============================================================
+#' @export
+semiOPBARTLocalClassCountsDS <- function(data.name, outcome_col, levels,
+                                         nfilter = 5) {
+  df <- eval(parse(text = data.name), envir = parent.frame())
+
+  if (nrow(df) < nfilter) {
+    stop("site n below disclosure threshold")
+  }
+
+  if (!outcome_col %in% names(df)) {
+    stop("Outcome column not found: ", outcome_col)
+  }
+
+  lev <- as.character(levels)
+  y   <- as.character(df[[outcome_col]])
+
+  # IMPORTANT:
+  # Always count against the analyst-supplied levels.
+  # This guarantees identical output structure across sites.
+  counts <- table(
+    factor(y, levels = lev),
+    useNA = "no"
+  )
+
+  list(
+    levels = lev,
+    counts = as.numeric(counts)
+  )
+}
+
+#' @export
+semiOPBARTLocalRemoveClassesDS <- function(data.name,
+                                           outcome_col,
+                                           remove_levels,
+                                           newobj = "semiOPBART_filtered",
+                                           nfilter = 5) {
+
+  s <- eval(parse(text = data.name), envir = parent.frame())
+
+  if (!is.data.frame(s))
+    stop("data.name must refer to a data.frame")
+
+  if (!outcome_col %in% names(s))
+    stop("outcome_col '", outcome_col, "' not found in data")
+
+  y_chr <- as.character(s[[outcome_col]])
+  remove_levels <- as.character(remove_levels)
+
+  keep <- !is.na(y_chr) & !(y_chr %in% remove_levels)
+
+  # Keep unlabeled rows. They are not part of the class-count
+  # decision and may be needed later for the holdout population.
+  keep[is.na(y_chr)] <- TRUE
+
+  s_filtered <- s[keep, , drop = FALSE]
+
+  assign(
+    newobj,
+    s_filtered,
+    envir = parent.frame()
+  )
+
+  list(
+    n_before = nrow(s),
+    n_after = nrow(s_filtered),
+    n_removed = sum(!keep),
+    removed_classes = remove_levels
+  )
+}
+
+
+
+
+
+
+
+
+
+
+
 
 #' @name semiOPBARTLocalAsTestDS
 #' @param newobj_test     Group A (labeled rows only) -- created ONLY if

@@ -44,6 +44,8 @@ AggregateMethods:
     semiOPBARTLocalAssembleExternalReferenceDS,
     semiOPBARTLocalPredictExternalStoredDS,
     semiOPBARTLocalStoreExternalReferenceChunkDS,
+    semiOPBARTLocalClassCountsDS,
+    semiOPBARTLocalRemoveClassesDS,
 Options: datashield.privacyLevel=5
 Depends: R (>= 3.5)
 Encoding: UTF-8

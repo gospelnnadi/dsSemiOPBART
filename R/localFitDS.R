@@ -85,7 +85,7 @@
 semiOPBARTLocalFitFDS <- function(formula_str, linear_formula_str, data.name,
                                   num_tree = 20, k = 1,
                                   num_burn = 1000, num_save = 1000,
-                                  nfilter = 5, state_name = ".semiOPBART_local_fit_F", seed = 35) {
+                                  nfilter = 5, state_name = ".semiOPBART_local_fit_F", seed = 35, sd = 1) {
   set.seed(seed)
   formula_str        <- semiOPBART_fromSerialize(formula_str)
   linear_formula_str <- semiOPBART_fromSerialize(linear_formula_str)
@@ -101,7 +101,7 @@ semiOPBARTLocalFitFDS <- function(formula_str, linear_formula_str, data.name,
                   num_tree = num_tree, k = k,
                   opts = { o <- SoftBart::Opts(); o$num_burn <- num_burn;
                   o$num_save <- num_save; o },
-                  verbose = FALSE)
+                  verbose = FALSE, seed=seed, sd = sd)
   fit$feat_names_x <- attr(fit$dv$terms, "term.labels")
   fit$feat_names_w <- all.vars(fit$linear_formula)
   fit$num_tree_used <- num_tree
