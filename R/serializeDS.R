@@ -21,7 +21,7 @@ library(openssl)
 
 #' Ported verbatim from the real smopbart() source (confirmed, not
 #' reconstructed): groups a dummyVars object's expanded dummy columns by
-#' their ORIGINAL categorical variable, so SoftBart's Dirichlet variable-
+#' their ORIGINAL categorical variable, so CSBart's Dirichlet variable-
 #' selection prior treats a multi-level categorical as ONE logical
 #' variable rather than letting its dummy columns compete independently.
 #' Shared here (rather than duplicated) because it's needed anywhere a
@@ -110,7 +110,7 @@ semiOPBART_ecdfFromSerialize <- function(Serialize_str) {
 }
 
 #' Encode a Forest's exported tree list (from the get_trees() Rcpp method
-#' added in softbart_forest_serialize_patch.cpp) to Serialize. Kept as a named
+#' added in csbart_forest_serialize_patch.cpp) to Serialize. Kept as a named
 #' wrapper rather than a bare call to semiOPBART_toSerialize() so call sites read
 #' clearly, and so the encoding strategy for trees specifically can change
 #' later (e.g. a more compact array-based format) without touching every

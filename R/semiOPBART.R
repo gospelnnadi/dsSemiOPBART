@@ -2,12 +2,12 @@
 ## - Built under SoftBART model
 
 ## necessary packages
-library(SoftBart)  # for BART
+library(CSBart)  # for BART
 library(truncnorm)  # for truncated normal dstn
 library(progress)  # for progress bar
 library(mvtnorm)  # for multivariate normal dstn
 
-## necessary preprocessing function for BART (from SoftBart implementation)
+## necessary preprocessing function for BART (from CSBart implementation)
 dummy_assign = function(dummy) {
   terms = attr(dummy$terms, "term.labels")
   group = list()
@@ -30,7 +30,7 @@ smopbart <- function(formula,
                      num_tree = 20,
                      k = 1,
                      seed = 35,
-                     opts = SoftBart::Opts(),
+                     opts = CSBart::Opts(),
                      verbose = FALSE,
                      nfilter_threshold = 5,
                      sd = 1) {
@@ -78,7 +78,7 @@ smopbart <- function(formula,
   ## From this point onward the original smopbart() is unchanged.
   ## ------------------------------------------------------------
 
-  hypers <- SoftBart::Hypers(X = X_train, Y = Y_train)
+  hypers <- CSBart::Hypers(X = X_train, Y = Y_train)
   hypers$sigma_mu <- 3 / k / sqrt(num_tree)
   hypers$sigma <- 1
   hypers$sigma_hat <- 1
@@ -119,7 +119,7 @@ smopbart <- function(formula,
 
   ## Make forest ----
 
-  smopbart_forest <- SoftBart::MakeForest(hypers, opts, FALSE)
+  smopbart_forest <- CSBart::MakeForest(hypers, opts, FALSE)
   print("forest made")
 
   ## Initialize output

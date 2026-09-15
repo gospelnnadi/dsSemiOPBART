@@ -4,7 +4,7 @@
 \alias{dummy_assign}
 \title{Ported verbatim from the real smopbart() source (confirmed, not
 reconstructed): groups a dummyVars object's expanded dummy columns by
-their ORIGINAL categorical variable, so SoftBart's Dirichlet variable-
+their ORIGINAL categorical variable, so CSBart's Dirichlet variable-
 selection prior treats a multi-level categorical as ONE logical
 variable rather than letting its dummy columns compete independently.
 Shared here (rather than duplicated) because it's needed anywhere a
@@ -19,7 +19,7 @@ dummy_assign(dummy)
 \description{
 Ported verbatim from the real smopbart() source (confirmed, not
 reconstructed): groups a dummyVars object's expanded dummy columns by
-their ORIGINAL categorical variable, so SoftBart's Dirichlet variable-
+their ORIGINAL categorical variable, so CSBart's Dirichlet variable-
 selection prior treats a multi-level categorical as ONE logical
 variable rather than letting its dummy columns compete independently.
 Shared here (rather than duplicated) because it's needed anywhere a

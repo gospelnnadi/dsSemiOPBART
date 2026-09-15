@@ -5,7 +5,7 @@
 
 library(usethis)
 library(devtools)
-library(SoftBart)
+library(CSBart)
 library(truncnorm)
 
 
@@ -35,17 +35,17 @@ semiOPBARTLocalInitEDS <- function(data.name, num_tree = 20, k = 1, nfilter = 5,
   s <- get(data.name, envir = parent.frame())
   if (length(s$Y) < nfilter) stop("site n below disclosure threshold")
 
-  hypers_owned <- SoftBart::Hypers(X = s$X, Y = as.numeric(s$Y))
+  hypers_owned <- CSBart::Hypers(X = s$X, Y = as.numeric(s$Y))
   hypers_owned$sigma_mu <- 3 / k / sqrt(num_tree)
   hypers_owned$sigma     <- 1
   hypers_owned$sigma_hat <- 1
   hypers_owned$num_tree  <- num_tree
   hypers_owned$group     <- dummy_assign(s$dv)
 
-  opts <- SoftBart::Opts()
+  opts <- CSBart::Opts()
   opts$update_sigma <- FALSE
 
-  owned_forest <- SoftBart::MakeForest(hypers_owned, opts, FALSE)
+  owned_forest <- CSBart::MakeForest(hypers_owned, opts, FALSE)
 
   message(sprintf(
   "[semiOPBARTLocalInitEDS] Initialized with p=%d, J=%d, num_tree=%d, k=%.3g",
@@ -69,7 +69,7 @@ semiOPBARTLocalInitEDS <- function(data.name, num_tree = 20, k = 1, nfilter = 5,
 #' @name semiOPBARTLocalVarCountsDS
 #' Variable importance for Architectures D and E: a snapshot of how many
 #' times each X feature is currently used as a splitting variable across
-#' `s$owned_forest`, via the same `$get_counts()` SoftBart forest method
+#' `s$owned_forest`, via the same `$get_counts()` CSBart forest method
 #' the non-federated smopbart() already uses for this (see semiOPBART.R,
 #' `varcounts[i,] = smopbart_forest$get_counts()`) -- just called once,
 #' against the FINAL trained forest, rather than accumulated every sweep,
@@ -91,7 +91,7 @@ semiOPBARTLocalVarCountsDS <- function(state_name = ".semiOPBART_state") {
 
   if (!is.function(s$owned_forest$get_counts))
     stop("semiOPBARTLocalVarCountsDS: this site's forest object has no ",
-         "get_counts() method -- check the installed SoftBart version.")
+         "get_counts() method -- check the installed CSBart version.")
 
   counts <- as.numeric(s$owned_forest$get_counts())
   feat_names <- if (!is.null(colnames(s$X))) colnames(s$X) else NULL

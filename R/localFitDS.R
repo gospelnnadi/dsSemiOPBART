@@ -30,7 +30,7 @@ semiOPBARTLocalFitFDS <- function(formula_str, linear_formula_str, data.name,
   fit <- smopbart(formula = formula, linear_formula = linear_formula,
                   train_df = df, test_df = df,
                   num_tree = num_tree, k = k,
-                  opts = { o <- SoftBart::Opts(); o$num_burn <- num_burn;
+                  opts = { o <- CSBart::Opts(); o$num_burn <- num_burn;
                   o$num_save <- num_save; o },
                   verbose = FALSE, seed=seed, sd = sd)
   fit$feat_names_x <- attr(fit$dv$terms, "term.labels")

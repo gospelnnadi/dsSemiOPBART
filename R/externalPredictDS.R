@@ -24,7 +24,7 @@
 # single global reference to ship, so training itself already refuses to
 # run under "local_ecdf" (semiOPBARTLocalInitDS()'s own hard requirement).
 # ---------------------------------------------------------------------------
-library(SoftBart)
+library(CSBart)
 
 #source("serializeDS.R")
 
@@ -785,7 +785,7 @@ if (!is.list(ecdf_reference) ||
   print("semiOPBARTLocalPredictExternalDS(): reconstructed reference forest successfully")
 
 hypers_template <- tryCatch(
-   SoftBart::Hypers(
+   CSBart::Hypers(
     X = s_test$X,
     Y = rep(1, nrow(s_test$X)),
     sigma_hat = 1,
@@ -793,7 +793,7 @@ hypers_template <- tryCatch(
 ),
     error = function(e) {
         stop(
-            "SoftBart::Hypers() failed: ",
+            "CSBart::Hypers() failed: ",
             conditionMessage(e)
         )
     }
@@ -807,8 +807,8 @@ hypers_template <- tryCatch(
   # without this, multi-level categorical x_features would be mishandled
   # by the Dirichlet variable-selection prior
   hypers_template$group <- dummy_assign(s_test$dv)
-  opts <- SoftBart::Opts(); opts$update_sigma <- FALSE
-  eval_forest <- SoftBart::MakeForest(hypers_template, opts, FALSE)
+  opts <- CSBart::Opts(); opts$update_sigma <- FALSE
+  eval_forest <- CSBart::MakeForest(hypers_template, opts, FALSE)
 
 
 
@@ -1037,7 +1037,7 @@ if (!is.function(eval_forest$do_predict) &&
 #   # # built FRESH from local X/Y -- no .semiOPBART_state dependency, which is
 #   # # the entire point of this function existing separately from
 #   # # semiOPBARTLocalPredictDS()
-#   # hypers_template <- SoftBart::Hypers(X = s_test$X, Y = rep(1, nrow(s_test$X)))
+#   # hypers_template <- CSBart::Hypers(X = s_test$X, Y = rep(1, nrow(s_test$X)))
 #   # hypers_template$sigma_mu <- 3 / k / sqrt(num_tree)
 #   # hypers_template$sigma     <- 1
 #   # hypers_template$sigma_hat <- 1
@@ -1046,9 +1046,9 @@ if (!is.function(eval_forest$do_predict) &&
 #   # # without this, multi-level categorical x_features would be mishandled
 #   # # by the Dirichlet variable-selection prior
 #   # hypers_template$group <- dummy_assign(s_test$dv)
-#   # opts <- SoftBart::Opts(); opts$update_sigma <- FALSE
+#   # opts <- CSBart::Opts(); opts$update_sigma <- FALSE
 
-#   # eval_forest <- SoftBart::MakeForest(hypers_template, opts, FALSE)
+#   # eval_forest <- CSBart::MakeForest(hypers_template, opts, FALSE)
 #   # semiOPBART_treesFromSerialize(eval_forest, final_trees_Serialize, seq_len(n_final_trees) - 1)
   
 #   eval_forest <- semiOPBART_treesFromSerialize(final_trees_Serialize)

@@ -3,7 +3,7 @@
 \name{semiOPBART_treesToSerialize}
 \alias{semiOPBART_treesToSerialize}
 \title{Encode a Forest's exported tree list (from the get_trees() Rcpp method
-added in softbart_forest_serialize_patch.cpp) to Serialize. Kept as a named
+added in csbart_forest_serialize_patch.cpp) to Serialize. Kept as a named
 wrapper rather than a bare call to semiOPBART_toSerialize() so call sites read
 clearly, and so the encoding strategy for trees specifically can change
 later (e.g. a more compact array-based format) without touching every
@@ -13,7 +13,7 @@ semiOPBART_treesToSerialize(forest)
 }
 \description{
 Encode a Forest's exported tree list (from the get_trees() Rcpp method
-added in softbart_forest_serialize_patch.cpp) to Serialize. Kept as a named
+added in csbart_forest_serialize_patch.cpp) to Serialize. Kept as a named
 wrapper rather than a bare call to semiOPBART_toSerialize() so call sites read
 clearly, and so the encoding strategy for trees specifically can change
 later (e.g. a more compact array-based format) without touching every
