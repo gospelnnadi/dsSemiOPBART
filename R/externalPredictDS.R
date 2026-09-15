@@ -117,7 +117,7 @@ semiOPBARTLocalStoreExternalReferenceChunkDS <- function(
     ref$n_ecdf_chunks <- as.integer(n_chunks)
   }
 
-  assign(
+  base::assign(
     staged_name,
     ref,
     envir = caller_env
@@ -177,7 +177,7 @@ semiOPBARTLocalStoreExternalReferenceDS <- function(
   ref$trees_chunks[[chunk_index]] <- trees_chunk
   ref$ecdf_chunks[[chunk_index]] <- ecdf_chunk
 
-  assign(
+  base::assign(
     state_name,
     ref,
     envir = caller_env
@@ -341,7 +341,7 @@ semiOPBARTLocalAssembleExternalReferenceDS <- function(
     reference_name
   )
 
-  assign(
+  base::assign(
     final_state_name,
     list(
       trees_Serialize = trees_Serialize,
@@ -925,7 +925,7 @@ if (!is.function(eval_forest$do_predict) &&
     ]
   print("semiOPBARTLocalPredictExternalDS(): computed posterior probabilities and MAP scores")
 
-  assign(
+  base::assign(
     newobj_pred,
     list(
       prob = prob_matrix,
@@ -1072,7 +1072,7 @@ if (!is.function(eval_forest$do_predict) &&
 #   colnames(prob_matrix) <- paste0("P_", levels_used)
 #   map_score <- levels_used[apply(prob_matrix, 1, which.max)]
 
-#   assign(newobj_pred, list(prob = prob_matrix, map = map_score, truth = s_test$Y,
+#   base::assign(newobj_pred, list(prob = prob_matrix, map = map_score, truth = s_test$Y,
 #                             used_external_shipping = TRUE),
 #          envir = parent.frame())
 #   list(n_test = n_test)

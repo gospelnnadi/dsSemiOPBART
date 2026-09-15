@@ -42,7 +42,7 @@ semiOPBARTLocalFitFDS <- function(formula_str, linear_formula_str, data.name,
   # with ANOTHER run (different pathology/model) at the same site, not
   # just with D/E's own state (which lives under a completely different
   # slot regardless)
-  assign(state_name, fit, envir = parent.frame())
+  base::assign(state_name, fit, envir = parent.frame())
 
   # var_counts (from smopbart_forest$get_counts() every post-burn-in sweep,
   # column-named by X feature -- see semiOPBART.R) was already being

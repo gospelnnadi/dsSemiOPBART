@@ -52,7 +52,7 @@ semiOPBARTLocalInitEDS <- function(data.name, num_tree = 20, k = 1, nfilter = 5,
   ncol(s$W), nlevels(s$Y), num_tree, k
 ))
 
-  assign(state_name, list(
+  base::assign(state_name, list(
     X = s$X, Y = as.numeric(s$Y), W = s$W, dv = s$dv, norm_info = s$norm_info,
     num_tree = num_tree, k = k,
     hypers_owned = hypers_owned, opts = opts,
@@ -415,7 +415,7 @@ s$J <- J
         s$theta <- local_theta
         s$us <- local_us
 
-        assign(
+        base::assign(
             state_name,
             s,
             envir = caller_env

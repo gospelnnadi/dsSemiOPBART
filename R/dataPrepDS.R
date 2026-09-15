@@ -178,8 +178,8 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
 
   print(paste0("semiOPBARTLocalTransformDS: colnames(X) = ", paste(colnames(X), collapse = ", "), ", colnames(W) = ", paste(colnames(W), collapse = ", "), ", length(Y) = ", length(Y)))
 
-  assign(newobj, list(X = X, W = W, Y = Y, dv = dv), envir = parent.frame())
-  print(paste0("semiOPBARTLocalTransformDS: assigned newobj '", newobj, "' in parent.frame()"))
+  base::assign(newobj, list(X = X, W = W, Y = Y, dv = dv), envir = parent.frame())
+  print(paste0("semiOPBARTLocalTransformDS: base::assigned newobj '", newobj, "' in parent.frame()"))
 
   # column names ARE returned (server -> client direction, not subject to
   # the inbound Serialize restriction) so the client can verify every site
@@ -384,7 +384,7 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
     "| dim(X) =", paste(dim(s$X), collapse = "x"),
     "\n"
     )
-        assign(
+        base::assign(
             nm,
             s,
             envir = caller_env
@@ -497,7 +497,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
 
   if (n_labeled < nfilter) {
 
-    assign(
+    base::assign(
       newobj_holdout,
       s,
       envir = parent.frame()
@@ -580,7 +580,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
       s_train <- bal$data
     }
 
-    assign(
+    base::assign(
       newobj_train,
       s_train,
       envir = parent.frame()
@@ -590,7 +590,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
 
     if (length(unlabeled_idx) >= nfilter) {
 
-      assign(
+      base::assign(
         newobj_holdout,
         slice(unlabeled_idx),
         envir = parent.frame()
@@ -703,7 +703,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
     s_train <- bal$data
   }
 
-  assign(
+  base::assign(
     newobj_train,
     s_train,
     envir = parent.frame()
@@ -717,7 +717,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
 
   if (length(test_idx) >= nfilter) {
 
-    assign(
+    base::assign(
       newobj_test,
       slice(test_idx),
       envir = parent.frame()
@@ -734,7 +734,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
 
   if (length(holdout_idx) >= nfilter) {
 
-    assign(
+    base::assign(
       newobj_holdout,
       slice(holdout_idx),
       envir = parent.frame()
@@ -937,7 +937,7 @@ semiOPBARTLocalRemoveClassesDS <- function(data.name,
 
   s_filtered <- s[keep, , drop = FALSE]
 
-  assign(
+  base::assign(
     newobj,
     s_filtered,
     envir = parent.frame()
@@ -979,7 +979,7 @@ semiOPBARTLocalAsTestDS <- function(data.name, newobj_test = "semiOPBART_test",
   labeled_idx <- which(!is.na(s$Y))
   n_test <- 0L
   if (length(labeled_idx) >= nfilter) {
-    assign(newobj_test, list(X = s$X[labeled_idx, , drop = FALSE],
+    base::assign(newobj_test, list(X = s$X[labeled_idx, , drop = FALSE],
                               W = s$W[labeled_idx, , drop = FALSE],
                               Y = s$Y[labeled_idx], dv = s$dv, norm_info = s$norm_info),
            envir = parent.frame())
@@ -987,7 +987,7 @@ semiOPBARTLocalAsTestDS <- function(data.name, newobj_test = "semiOPBART_test",
     n_test <- length(labeled_idx)
   }
 
-  assign(newobj_holdout, s, envir = parent.frame())   # ALL rows, unconditionally
+  base::assign(newobj_holdout, s, envir = parent.frame())   # ALL rows, unconditionally
   list(n_test = n_test, n_holdout = length(s$Y))
 }
 
