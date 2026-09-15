@@ -1,35 +1,6 @@
 # dsSemiOPBARTBase.R
 # ---------------------------------------------------------------------------
-# ARCHITECTURE D, REDESIGNED FROM PARTITION+ROTATION TO SWAP:
-#
-# Previously: ONE global ensemble of num_tree trees, PARTITIONED across
-# sites (site1 owns 4, site2 owns 7, ...), each site's "shadow forest"
-# reconstructed the other sites' trees via broadcast so f(x) at any site
-# = owned_forest$do_predict + shadow_forest$do_predict.
-#
-# Now: EVERY site keeps its OWN COMPLETE, permanent num_tree-tree forest,
-# always (no partition, no shadow forest, no reconstruction needed for
-# prediction -- f(x) at a site is just owned_forest$do_predict(X)).
-# Periodically (every swap_every sweeps), each site exchanges a FIXED
-# n_swap of its own current trees with a neighbor along a ring topology
-# (ds_semiopbart.R's swap_trees()) -- a strict swap, so every site's tree
-# count stays exactly num_tree at all times. The federation's aggregate
-# tree count is therefore num_tree * n_sites, but each site's own forest
-# is independently self-sufficient for prediction there -- nothing about
-# another site's data or trees needs to be present anywhere to predict.
-#
-# "Except the received trees": SoftBart's do_gibbs()/do_gibbs_weighted()
-# always backfits every tree in the forest -- there is no subset-grow
-# primitive in the C++ layer. Excluding just-received trees from a grow
-# sweep is done in pure R instead, using the already-patched get_trees()/
-# set_trees(): snapshot the received slots before growing, grow the whole
-# forest as normal, then restore exactly those slots to their pre-grow
-# state. The freeze lasts exactly ONE grow call (the sweep right after
-# receipt) -- from the sweep after that, a received tree resumes normal
-# local growth like any other, until it's next selected for a swap-out
-# (which can happen from ANY current slot, not just "originally grown
-# here" ones -- so trees can migrate through more than one site over
-# time, not just bounce between an original pair).
+# ARCHITECTURE E
 # ---------------------------------------------------------------------------
 
 library(usethis)
