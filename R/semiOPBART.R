@@ -146,7 +146,7 @@ smopbart <- function(formula,
   lower = lower_us[Y_train]
   upper_us = c(us_p[1,], Inf)
   upper = upper_us[Y_train]
-  Z = rtruncnorm(n = length(Y_train), a = lower, b = upper, mean = fx_train[1,] + W_train %*% theta_p[1,], sd = sd)
+  Z = truncnorm::rtruncnorm(n = length(Y_train), a = lower, b = upper, mean = fx_train[1,] + W_train %*% theta_p[1,], sd = sd)
   print("initial values for Gibbs sampling initialized")
   ## MCMC
  

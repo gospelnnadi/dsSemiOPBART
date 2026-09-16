@@ -17,8 +17,6 @@
 # ---------------------------------------------------------------------------
 
 
-library(openssl)
-
 #' Ported verbatim from the real smopbart() source (confirmed, not
 #' reconstructed): groups a dummyVars object's expanded dummy columns by
 #' their ORIGINAL categorical variable, so CSBart's Dirichlet variable-

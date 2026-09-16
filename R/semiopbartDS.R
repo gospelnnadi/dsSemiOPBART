@@ -3,8 +3,7 @@
 # ARCHITECTURE E
 # ---------------------------------------------------------------------------
 
-library(usethis)
-library(devtools)
+
 library(CSBart)
 library(truncnorm)
 

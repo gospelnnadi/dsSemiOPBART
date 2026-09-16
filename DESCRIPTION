@@ -53,3 +53,12 @@ LazyData: true
 License: GPL-3
 SystemRequirements: GNU Fortran
 Config/roxygen2/version: 8.1.0
+Import:
+    CSBart,  
+    truncnorm,  
+    progress,   
+    mvtnorm,   
+    dplyr,
+    ggplot2,
+    tidyr
+
