@@ -56,8 +56,8 @@ Config/roxygen2/version: 8.1.0
 Import:
     CSBart,  
     truncnorm,  
-    progress,   
-    mvtnorm,   
+    mvtnorm, 
+    progress,  
     dplyr,
     ggplot2,
     tidyr

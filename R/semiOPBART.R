@@ -150,7 +150,7 @@ smopbart <- function(formula,
   print("initial values for Gibbs sampling initialized")
   ## MCMC
  
-  pb = progress_bar$new(
+  pb = progress::progress_bar$new(
     format = "  MCMC [:bar] :percent eta: :eta",
     total = N-1, clear = FALSE, width= 60)
 
