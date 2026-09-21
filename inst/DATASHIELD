@@ -29,5 +29,6 @@ AggregateMethods:
     semiOPBARTLocalStoreExternalReferenceChunkDS,
     semiOPBARTLocalClassCountsDS,
     semiOPBARTLocalRemoveClassesDS,
+    semiOPBARTsetExternalPredictedHoldoutDS,
 
 

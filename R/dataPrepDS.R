@@ -723,6 +723,8 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
       envir = parent.frame()
     )
 
+    
+
     n_test <- length(test_idx)
   }
 
@@ -746,7 +748,6 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
   # ------------------------------------------------------------
   # Diagnostics
   # ------------------------------------------------------------
-
   cat(
     "LocalSPLIT:",
     "data.name =", data.name,
@@ -990,4 +991,9 @@ semiOPBARTLocalAsTestDS <- function(data.name, newobj_test = "semiOPBART_test",
   base::assign(newobj_holdout, s, envir = parent.frame())   # ALL rows, unconditionally
   list(n_test = n_test, n_holdout = length(s$Y))
 }
+
+
+
+
+
 

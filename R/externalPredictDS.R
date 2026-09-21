@@ -944,8 +944,64 @@ if (!is.function(eval_forest$do_predict) &&
 }
 
 
+#' @export
+semiOPBARTsetExternalPredictedHoldoutDS <- function(
+    data.name,
+    holdout.name,
+    predicted_col = "predicted",
+    newobj = "semiOPBART_dfPred",
+    nfilter = 5
+) {
 
+  message("i am here 0")
 
+  df <-data.name  
+  df_holdout <- holdout.name  
+
+  if (!is.data.frame(df)) {
+    stop("data.name must refer to a data.frame")
+  }
+
+  if (!is.list(df_holdout)) {
+    stop("holdout.name must refer to a list")
+  }
+
+  if (!"map" %in% names(df_holdout)) {
+    stop(
+      "Holdout object '", holdout.name,
+      "' does not contain a 'map' element. Available elements: ",
+      paste(names(df_holdout), collapse = ", ")
+    )
+  }
+
+  pred <- df_holdout[["map"]]
+
+  message("prediction length = ", length(pred))
+  message("df rows = ", nrow(df))
+
+  if (length(pred) != nrow(df)) {
+    stop(
+      "Length of holdout$map (", length(pred),
+      ") does not match number of rows in df (", nrow(df), ")"
+    )
+  }
+
+  # Add prediction column
+  df[[predicted_col]] <- as.factor(pred)
+
+  base::assign(
+    newobj,
+    df,
+    envir = parent.frame()
+  )
+
+  list(
+    newobj = newobj,
+    n_rows = nrow(df),
+    n_cols = ncol(df),
+    predicted_col = predicted_col
+  )
+}
 
 
 

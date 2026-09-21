@@ -111,7 +111,8 @@ semiOPBARTLocalPredictEDS <- function(theta_Serialize, us_Serialize,
 
   base::assign(newobj_pred, list(prob = prob_matrix, map = map_score, truth = s_test$Y),
          envir = parent.frame())
-  list(n_test = n_test)
+  list(n_test = n_test, map_score = map_score,
+                           truth = s_test$Y)
 }
 
 
@@ -192,7 +193,8 @@ semiOPBARTLocalPredictFDS <- function(theta_Serialize, us_Serialize,
   base::assign(newobj_pred, list(prob = prob_matrix, map = map_score,
                            truth = df_test$Y),
          envir = parent.frame())
-  list(n_test = length(combined))
+  list(n_test = length(combined) ,map_score = map_score,
+                           truth = df_test$Y )
 }
 
 
