@@ -457,3 +457,18 @@ s$J <- J
 semiOPBARTLocalCheckExistsDS <- function(object.name) {
   exists(object.name, envir = parent.frame(), inherits = FALSE)
 }
+
+#' @name semiOPBARTLocalCheckExists2DS
+#' Lightweight, disclosure-safe check: does a given object name exist
+#' in the server environment? Returns TRUE/FALSE only, no data.
+#' 
+#' This is the single shared entry point every trainer should call
+#' before attempting semiOPBARTLocalInitDS/EDS/etc., so auto-demoted
+#' sites (which have D_holdout but no D_train) are silently excluded
+#' rather than crashing the whole training call.
+#' 
+#' @param object.name  name of the object to check (e.g. "D_train")
+#' @export
+semiOPBARTLocalCheckExists2DS <- function(object.name) {
+  exists(object.name, envir = parent.frame(), inherits = FALSE)
+}

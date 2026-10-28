@@ -2,6 +2,7 @@
 
 export(semiOPBARTLocalAsTestDS)
 export(semiOPBARTLocalAssembleExternalReferenceDS)
+export(semiOPBARTLocalCheckExists2DS)
 export(semiOPBARTLocalCheckExistsDS)
 export(semiOPBARTLocalClassCountsDS)
 export(semiOPBARTLocalClearStateDS)

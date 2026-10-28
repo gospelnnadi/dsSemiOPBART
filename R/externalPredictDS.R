@@ -815,8 +815,6 @@ hypers_template <- tryCatch(
   semiOPBART_treesFromSerialize(eval_forest, final_trees_Serialize, seq_len(num_tree) - 1)
 
 
-
-
 print("semiOPBARTLocalPredictExternalDS(): reconstructed reference forest and set trees")
 if (!is.function(eval_forest$do_predict) &&
     !methods::hasMethod("do_predict", class(eval_forest))) {
@@ -935,7 +933,7 @@ if (!is.function(eval_forest$do_predict) &&
     ),
     envir = caller_env
   )
-
+ 
   list(
     n_test = n_test, prob = prob_matrix,
       map = map_score,

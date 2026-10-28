@@ -16,11 +16,9 @@ AggregateMethods:
     semiOPBARTLocalClearStateDS,
     semiOPBARTLocalMCMCImproved ,
     semiOPBARTLocalPredictEDS,
-    semiOPBARTLocalInitEDS,
     semiOPBARTLocalMCMC, 
     semiOPBARTLocalGrowAndThresholdStatsDS,
     semiOPBARTLocalThresholdStatsDS,
-    semiOPBARTLocalSyncDS,
     semiOPBARTLocalCheckExistsDS,
     semiOPBARTLocalExportForestDS,
     semiOPBARTLocalStoreExternalReferenceDS,
@@ -30,5 +28,7 @@ AggregateMethods:
     semiOPBARTLocalClassCountsDS,
     semiOPBARTLocalRemoveClassesDS,
     semiOPBARTsetExternalPredictedHoldoutDS,
+AssignMethods: 
+    semiOPBARTLocalCheckExists2DS 
 
 

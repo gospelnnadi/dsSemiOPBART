@@ -14,7 +14,8 @@ Authors@R:
              role="ths",
              email="mdrra-univr@univr.it"))
 Maintainer: Gospel Ozioma Nnadi <gospelozioma.nnadi@univr.it>
-Description: dsSemiOPBART - Federated Semi Opbit Bayesian Addictive Regression Tree Learning on DataSHIELD.
+Description: Provides server-side functions for federated Bayesian
+    additive regression tree learning using DataSHIELD.
 AggregateMethods:
     semiOPBARTLocalSyncDS,
     semiOPBARTLocalInitDS,
@@ -33,11 +34,9 @@ AggregateMethods:
     semiOPBARTLocalClearStateDS,
     semiOPBARTLocalMCMCImproved,
     semiOPBARTLocalPredictEDS,
-    semiOPBARTLocalInitEDS,
     semiOPBARTLocalMCMC,
     semiOPBARTLocalGrowAndThresholdStatsDS,
     semiOPBARTLocalThresholdStatsDS,
-    semiOPBARTLocalSyncDS,
     semiOPBARTLocalCheckExistsDS,
     semiOPBARTLocalExportForestDS,
     semiOPBARTLocalStoreExternalReferenceDS,
@@ -46,7 +45,9 @@ AggregateMethods:
     semiOPBARTLocalStoreExternalReferenceChunkDS,
     semiOPBARTLocalClassCountsDS,
     semiOPBARTLocalRemoveClassesDS,
-    semiOPBARTsetExternalPredictedHoldoutDS,
+    semiOPBARTsetExternalPredictedHoldoutDS
+AssignMethods: 
+    semiOPBARTLocalCheckExists2DS
 Options: datashield.privacyLevel=5
 Depends: R (>= 3.5)
 Encoding: UTF-8
@@ -54,12 +55,11 @@ LazyData: true
 License: GPL-3
 SystemRequirements: GNU Fortran
 Config/roxygen2/version: 8.1.0
-Import:
-    CSBart,  
-    truncnorm,  
-    mvtnorm, 
-    progress,  
+Imports:
+    CSBart,
+    truncnorm,
+    mvtnorm,
+    progress,
     dplyr,
     ggplot2,
     tidyr
-
