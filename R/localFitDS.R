@@ -6,10 +6,7 @@
 # plain, unwrapped string, same convention as every other server function
 # in this codebase.
 # ---------------------------------------------------------------------------
-library(CSBart)  # for BART
-library(truncnorm)  # for truncated normal dstn
-library(progress)  # for progress bar
-library(mvtnorm)  # for multivariate normal dstn
+
 #' @name semiOPBARTLocalFitFDS
 #' Fit the unmodified single-site smopbart() locally and return ONLY
 #' posterior summaries -- never raw MCMC draws, never row-level predictions.
