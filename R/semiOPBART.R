@@ -2,10 +2,10 @@
 ## - Built under SoftBART model
 
 ## necessary packages
-library(CSBart)  # for BART
-library(truncnorm)  # for truncated normal dstn
-library(progress)  # for progress bar
-library(mvtnorm)  # for multivariate normal dstn
+# library(CSBart)  # for BART
+# library(truncnorm)  # for truncated normal dstn
+# library(progress)  # for progress bar
+#library(mvtnorm)  # for multivariate normal dstn
 
 ## necessary preprocessing function for BART (from CSBart implementation)
 dummy_assign = function(dummy) {
