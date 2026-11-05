@@ -173,7 +173,7 @@ smopbart <- function(formula,
     lower = lower_us[Y_train]
     upper_us = c(us_p[i,], Inf)
     upper = upper_us[Y_train]
-    Z = rtruncnorm(n = length(Y_train), a = lower, b = upper, mean = fx_train[i-1,] + W_train %*% theta_p[i-1,], sd=sd)
+    Z = truncnorm::rtruncnorm(n = length(Y_train), a = lower, b = upper, mean = fx_train[i-1,] + W_train %*% theta_p[i-1,], sd=sd)
 
     ## update theta
     Z_star = Z - fx_train[i-1,]
