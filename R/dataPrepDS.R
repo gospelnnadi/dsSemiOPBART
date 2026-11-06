@@ -120,8 +120,9 @@ semiOPBARTLocalClearStateDS <- function(names_Serialize = "null") {
 #'                          object (a list with $X, $W, $Y, $dv) is stored
 #' @param nfilter           minimum site n to proceed at all
 #' @export
-semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
+semiOPBARTLocalTransformDS <- function(data.name, outcome_col,  levels_Serialize,
                                         x_features_Serialize, w_features_Serialize,
+                                        validation_col = NULL,
                                         transform_recipe = "none",
                                         newobj = "semiOPBART_transformed",
                                         nfilter = 5) {
@@ -169,7 +170,15 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
   # for the TRAIN object. The TEST object may legitimately contain
   # unlabeled rows (no training label at all, only prediction + optional
   # validation against a separate variable -- see dsSemiOPBARTEvaluate.R).
-
+  validation_available <- !is.null(validation_col) && length(validation_col) == 1L && nzchar(validation_col) && validation_col %in% names(df) 
+  if (validation_available) { 
+    df[[validation_col]] <- factor(df[[validation_col]], levels = levels) 
+    validation <- df[[validation_col]] 
+    cat( "TRANSFORM: validation available |", "column =", validation_col, "| length(validation) =", length(validation), "| NA(validation) =", sum(is.na(validation)), "\n" ) 
+    } else { 
+      validation <- NULL 
+      cat( "TRANSFORM: validation unavailable locally |", "requested validation_col =", validation_col, "| validation = NULL\n" ) 
+      }
   dv <- caret::dummyVars(as.formula(paste("~", paste(x_features, collapse = " + "))), df)
   X  <- suppressWarnings(predict(dv, df))    # UNNORMALISED -- normalization
                                               # happens in step 3, not here
@@ -178,7 +187,7 @@ semiOPBARTLocalTransformDS <- function(data.name, outcome_col, levels_Serialize,
 
   print(paste0("semiOPBARTLocalTransformDS: colnames(X) = ", paste(colnames(X), collapse = ", "), ", colnames(W) = ", paste(colnames(W), collapse = ", "), ", length(Y) = ", length(Y)))
 
-  base::assign(newobj, list(X = X, W = W, Y = Y, dv = dv), envir = parent.frame())
+  base::assign(newobj, list(X = X, W = W, Y = Y, Z = validation, dv = dv), envir = parent.frame())
   print(paste0("semiOPBARTLocalTransformDS: base::assigned newobj '", newobj, "' in parent.frame()"))
 
   # column names ARE returned (server -> client direction, not subject to
@@ -433,7 +442,8 @@ semiOPBARTLocalNormalizeSplitDS <- function(train.name = "semiOPBART_train",
 #' Test and holdout populations are never replicated or modified.
 #'
 #' @export
-semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
+semiOPBARTLocalSplitDS <- function(data.name, outcome_col,
+                                     train_ratio = NULL,
                                     seed = NULL,
                                     newobj_train = "semiOPBART_train",
                                     newobj_test = "semiOPBART_test",
@@ -467,6 +477,8 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
       paste(dim(tmp$W), collapse = "x"),
       "| Y:",
       length(tmp$Y),
+      "| Z:",
+      length(tmp$Z),
       "\n"
     )
   }
@@ -477,7 +489,8 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
       ", n_unlabeled = ", length(unlabeled_idx),
       ", dim(s$X) = ", paste(dim(s$X), collapse = "x"),
       ", dim(s$W) = ", paste(dim(s$W), collapse = "x"),
-      ", length(s$Y) = ", length(s$Y)
+      ", length(s$Y) = ", length(s$Y),
+      ", length(s$Z) = ", length(s$Z)
     )
   )
  
@@ -486,6 +499,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
       X = s$X[idx, , drop = FALSE],
       W = s$W[idx, , drop = FALSE],
       Y = s$Y[idx],
+      Z = s$Z[idx],
       dv = s$dv,
       norm_info = s$norm_info
     )
@@ -757,6 +771,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
     "| dim(X) =", paste(dim(s$X), collapse = "x"),
     "| dim(W) =", paste(dim(s$W), collapse = "x"),
     "| length(Y) =", length(s$Y),
+    "| length(Z) =", length(s$Z),
     "\n"
   )
 
@@ -766,6 +781,7 @@ semiOPBARTLocalSplitDS <- function(data.name, outcome_col, train_ratio = NULL,
     "| dim(X) =", paste(dim(s$X), collapse = "x"),
     "| dim(W) =", paste(dim(s$W), collapse = "x"),
     "| length(Y) =", length(s$Y),
+    "| length(Z) =", length(s$Z),
     "| pid =", Sys.getpid(),
     "| host =", Sys.info()[["nodename"]],
     "\n"
@@ -851,6 +867,7 @@ semiOPBART_balance_train <- function(s,
     X = s$X[balanced_idx, , drop = FALSE],
     W = s$W[balanced_idx, , drop = FALSE],
     Y = s$Y[balanced_idx],
+    Z = s$Z[balanced_idx],
     dv = s$dv,
     norm_info = s$norm_info
   )
@@ -982,7 +999,7 @@ semiOPBARTLocalAsTestDS <- function(data.name, newobj_test = "semiOPBART_test",
   if (length(labeled_idx) >= nfilter) {
     base::assign(newobj_test, list(X = s$X[labeled_idx, , drop = FALSE],
                               W = s$W[labeled_idx, , drop = FALSE],
-                              Y = s$Y[labeled_idx], dv = s$dv, norm_info = s$norm_info),
+                              Y = s$Y[labeled_idx], Z = s$Z[labeled_idx], dv = s$dv, norm_info = s$norm_info),
            envir = parent.frame())
 
     n_test <- length(labeled_idx)

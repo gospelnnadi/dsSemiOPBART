@@ -109,10 +109,11 @@ semiOPBARTLocalPredictEDS <- function(theta_Serialize, us_Serialize,
   colnames(prob_matrix) <- paste0("P_", levels_used)
   map_score <- levels_used[apply(prob_matrix, 1, which.max)]
 
-  base::assign(newobj_pred, list(prob = prob_matrix, map = map_score, truth = s_test$Y),
-         envir = parent.frame())
+  base::assign(newobj_pred,
+  list(prob = prob_matrix, map = map_score, truth = s_test$Y, validation = s_test$Z),
+  envir = parent.frame())
   list(n_test = n_test, map_score = map_score,
-                           truth = s_test$Y)
+                           truth = s_test$Y, validation = s_test$Z)
 }
 
 
@@ -191,10 +192,14 @@ semiOPBARTLocalPredictFDS <- function(theta_Serialize, us_Serialize,
   map_score <- levels_used[apply(prob_matrix, 1, which.max)]
 
   base::assign(newobj_pred, list(prob = prob_matrix, map = map_score,
-                           truth = df_test$Y),
+                           truth = df_test$Y, validation =df_test$Z),
          envir = parent.frame())
+
+  
+  message(paste0("semiOPBARTLocalPredictFDS(): prediction complete at this site, ",
+               "stored in '", df_test$Z, "' (truth) and '", newobj_pred, "' (predicted)"))
   list(n_test = length(combined) ,map_score = map_score,
-                           truth = df_test$Y )
+                          truth = df_test$Y , validation = df_test$Z)
 }
 
 

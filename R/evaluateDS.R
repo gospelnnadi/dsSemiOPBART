@@ -80,19 +80,39 @@ semiOPBARTLocalConfusionDS <- function(pred_obj, levels_Serialize, nfilter = 5,
   if (identical(validation_col, "null")) validation_col <- NULL
   if (identical(validation_data.name, "null")) validation_data.name <- NULL
 
+  
+  # if (is.null(validation_col)) {
+  #   truth_raw <- p$truth
+  # } else {
+  #   if (is.null(validation_data.name) ||
+  #       !exists(validation_data.name, envir = parent.frame(), inherits = FALSE))
+  #     return(NULL)   # no such object at this site -- no validation possible
+  #   vdf <- get(validation_data.name, envir = parent.frame())
+  #   if (!validation_col %in% names(vdf)) return(NULL)   # column absent here
+  #   truth_raw <- vdf[[validation_col]]
+  #   if (length(truth_raw) != length(p$map))
+  #     return(NULL)   # row-count mismatch between predictions and this
+  #                     # validation source -- cannot align them safely
+  # }
+
   if (is.null(validation_col)) {
     truth_raw <- p$truth
   } else {
-    if (is.null(validation_data.name) ||
-        !exists(validation_data.name, envir = parent.frame(), inherits = FALSE))
-      return(NULL)   # no such object at this site -- no validation possible
-    vdf <- get(validation_data.name, envir = parent.frame())
-    if (!validation_col %in% names(vdf)) return(NULL)   # column absent here
-    truth_raw <- vdf[[validation_col]]
-    if (length(truth_raw) != length(p$map))
+  if (is.null(validation_data.name) ||
+      !exists(validation_data.name, envir = parent.frame(), inherits = FALSE))
+    return(NULL)   # no such object at this site -- no validation possible
+  o <- get(validation_data.name, envir = parent.frame())
+  cat("Z:", length(o$Z), "nonNA:", sum(!is.na(o$Z)), "levels:", paste(levels(o$Z), collapse=","), "\n")
+  # p <- get("D_holdout_IP_pred", envir = parent.frame())
+  # cat("names:", names(p), "| validation:", length(p$validation), "\n")
+  #   message(paste0("semiOPBARTLocalConfusionDS(): using validation is not null'", is.null(p$validation), "' at this site (instead of the model's original training label)"))
+    if (is.null(o$Z)) return(NULL)   # no validation column at this site -- nothing to evaluate
+    truth_raw <- o$Z
+    message(paste0("semiOPBARTLocalConfusionDS(): using validation label)"))
+  if (length(truth_raw) != length(p$map))
       return(NULL)   # row-count mismatch between predictions and this
                       # validation source -- cannot align them safely
-  }
+ }
 
   truth_f <- factor(as.character(truth_raw), levels = levels)
   pred_f  <- factor(as.character(p$map),     levels = levels)
